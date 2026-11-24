@@ -1,3 +1,4 @@
+
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -5,7 +6,13 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // Ignore generated files and VS Code history backups
+  globalIgnores([
+    'dist',
+    'node_modules',
+    '.history/**',
+  ]),
+
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -15,7 +22,9 @@ export default defineConfig([
     ],
     languageOptions: {
       globals: globals.browser,
-      parserOptions: { ecmaFeatures: { jsx: true } },
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
     },
   },
 ])
