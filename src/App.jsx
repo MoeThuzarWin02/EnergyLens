@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { BrowserMultiFormatReader } from "@zxing/browser";
+
+import ManagerDashboard from "./ManagerDashboard";
+
+import LoginPage from "./LoginPage";
 
 import {
 
@@ -1463,129 +1468,226 @@ function EntryField({ field, value, onChange }) {
 
 // ========================================
 
-
 // ========================================
+
 // BARCODE / QR CODE SCANNER
+
 // ========================================
 
 function BarcodeScanner({ onDetected, onClose }) {
+
   const videoRef = useRef(null);
+
   const [cameraError, setCameraError] = useState("");
 
   useEffect(() => {
+
     let active = true;
+
     let controls = null;
+
     const reader = new BrowserMultiFormatReader();
 
     reader
+
       .decodeFromVideoDevice(
+
         undefined,
+
         videoRef.current,
+
         (result, _error, callbackControls) => {
+
           if (callbackControls) {
+
             controls = callbackControls;
+
           }
 
           if (result && active) {
+
             active = false;
+
             controls?.stop();
+
             onDetected(result.getText());
+
           }
+
         }
+
       )
+
       .then((startedControls) => {
+
         controls = startedControls;
 
         if (!active) {
+
           startedControls.stop();
+
         }
+
       })
+
       .catch((error) => {
+
         if (!active) return;
 
         if (error?.name === "NotAllowedError") {
+
           setCameraError(
+
             "Camera permission was denied. Allow camera access in your browser settings and try again."
+
           );
+
         } else {
+
           setCameraError(
+
             "Unable to start the camera. Check that a camera is connected and that this page is using localhost or HTTPS."
+
           );
+
         }
+
       });
 
     return () => {
+
       active = false;
+
       controls?.stop();
+
     };
+
   }, [onDetected]);
 
   return (
+
     <div
+
       className="barcode-modal-backdrop"
+
       role="presentation"
+
       onMouseDown={(event) => {
+
         if (event.target === event.currentTarget) {
+
           onClose();
+
         }
+
       }}
+
     >
+
       <section
+
         className="barcode-modal"
+
         role="dialog"
+
         aria-modal="true"
+
         aria-labelledby="barcode-modal-title"
+
       >
+
         <div className="barcode-modal-header">
+
           <div>
+
             <span className="entry-eyebrow">ENERGYLENS SCANNER</span>
+
             <h2 id="barcode-modal-title">Scan barcode or QR code</h2>
+
             <p>Position the code inside the camera frame.</p>
+
           </div>
 
           <button
+
             type="button"
+
             className="barcode-modal-close"
+
             onClick={onClose}
+
             aria-label="Close scanner"
+
           >
+
             <X size={20} />
+
           </button>
+
         </div>
 
         <div className="barcode-video-frame">
+
           <video
+
             ref={videoRef}
+
             className="barcode-video"
+
             autoPlay
+
             muted
+
             playsInline
+
           />
+
           <span className="barcode-scan-guide" aria-hidden="true" />
+
         </div>
 
         {cameraError ? (
+
           <p className="barcode-camera-error" role="alert">
+
             {cameraError}
+
           </p>
+
         ) : (
+
           <p className="barcode-camera-hint">
+
             Keep the barcode or QR code steady and clearly visible.
+
           </p>
+
         )}
 
         <div className="barcode-modal-actions">
+
           <button
+
             type="button"
+
             className="entry-cancel-button"
+
             onClick={onClose}
+
           >
+
             Cancel
+
           </button>
+
         </div>
+
       </section>
+
     </div>
+
   );
+
 }
 
 // FIVE ENTRY PAGES
@@ -1607,25 +1709,41 @@ function EntryPage({
   const Icon = config.icon;
 
   const [formData, setFormData] = useState({});
+
   const [scannerOpen, setScannerOpen] = useState(false);
+
   const [scanMessage, setScanMessage] = useState("");
 
   const barcodeTargetLabel =
+
     config.sections
+
       .flatMap((section) => section.fields)
+
       .find((field) => field.name === config.barcodeField)?.label ||
+
     "reference field";
 
   const handleBarcodeDetected = useCallback(
+
     (scannedValue) => {
+
       setFormData((current) => ({
+
         ...current,
+
         [config.barcodeField]: scannedValue,
+
       }));
+
       setScanMessage(`Scanned value added to ${barcodeTargetLabel}.`);
+
       setScannerOpen(false);
+
     },
+
     [config.barcodeField, barcodeTargetLabel]
+
   );
 
   const handleChange = (name, value) => {
@@ -1737,33 +1855,57 @@ function EntryPage({
       >
 
         <div className="entry-barcode-toolbar">
+
           <div className="entry-barcode-copy">
+
             <span className="entry-barcode-kicker">OPTIONAL QUICK INPUT</span>
+
             <strong>Barcode / QR code scanning</strong>
+
             <p>
+
               Scan to fill <b>{barcodeTargetLabel}</b>. You can also enter
+
               this information manually.
+
             </p>
+
           </div>
 
           <button
+
             type="button"
+
             className="entry-barcode-button"
+
             onClick={() => {
+
               setScanMessage("");
+
               setScannerOpen(true);
+
             }}
+
           >
+
             <ScanLine size={18} />
+
             Scan Barcode
+
           </button>
+
         </div>
 
         {scanMessage && (
+
           <p className="barcode-success-message" role="status">
+
             <CheckCircle2 size={16} />
+
             {scanMessage}
+
           </p>
+
         )}
 
         {config.sections.map((section, index) => (
@@ -1867,10 +2009,15 @@ function EntryPage({
       </form>
 
       {scannerOpen && (
+
         <BarcodeScanner
+
           onDetected={handleBarcodeDetected}
+
           onClose={() => setScannerOpen(false)}
+
         />
+
       )}
 
       <p className="entry-disclaimer">
@@ -1898,6 +2045,7 @@ function EntryPage({
 function RecordPage({ config, records, onBack }) {
 
   const [searchTerm, setSearchTerm] = useState("");
+
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const filteredRecords = records.filter((record) => {
@@ -1999,12 +2147,19 @@ function RecordPage({ config, records, onBack }) {
           </div>
 
           <input
+
             className="record-search-input"
+
             type="search"
+
             value={searchTerm}
+
             onChange={(event) => setSearchTerm(event.target.value)}
+
             placeholder="Search records..."
+
             aria-label={`Search ${config.title}`}
+
           />
 
         </div>
@@ -2191,6 +2346,208 @@ function PlaceholderPage({ title, onBack }) {
 
 }
 
+const DEMO_PASSWORD = "EnergyLens123!";
+
+const DEMO_ACCOUNTS = {
+
+  "manager@energylens.demo": "manager",
+
+  "analyst@energylens.demo": "analyst",
+
+  "staff@energylens.demo": "staff",
+
+  "stakeholder@energylens.demo": "stakeholder",
+
+};
+
+function PendingRoleDashboard({ role, onLogout }) {
+
+  const isAnalyst = role === "analyst";
+
+  const title = isAnalyst
+
+    ? "Analyst Workspace"
+
+    : "Stakeholder Workspace";
+
+  const features = isAnalyst
+
+    ? [
+
+        "PCA and TOPSIS analysis",
+
+        "EPI results and energy predictions",
+
+        "Simulation and scenario analysis",
+
+        "OCR extraction review and correction",
+
+      ]
+
+    : [
+
+        "Facility performance statistics",
+
+        "Energy consumption monitoring",
+
+        "Electricity cost monitoring",
+
+        "Monthly charts and reports",
+
+        "EPI performance monitoring",
+
+      ];
+
+  return (
+
+    <main
+
+      style={{
+
+        minHeight: "100vh",
+
+        padding: "45px",
+
+        background: "#f4f7fb",
+
+        color: "#183451",
+
+      }}
+
+    >
+
+      <header
+
+        style={{
+
+          display: "flex",
+
+          justifyContent: "space-between",
+
+          alignItems: "center",
+
+          flexWrap: "wrap",
+
+          gap: "15px",
+
+        }}
+
+      >
+
+        <div>
+
+          <h1 style={{ margin: 0 }}>EnergyLens</h1>
+
+          <p>{title}</p>
+
+        </div>
+
+        <button
+
+          type="button"
+
+          onClick={onLogout}
+
+          style={{
+
+            padding: "11px 20px",
+
+            border: "1px solid #d5deea",
+
+            borderRadius: "8px",
+
+            background: "white",
+
+            cursor: "pointer",
+
+          }}
+
+        >
+
+          <LogOut size={16} style={{ verticalAlign: "middle" }} />
+
+          {" "}Logout
+
+        </button>
+
+      </header>
+
+      <section
+
+        style={{
+
+          maxWidth: "750px",
+
+          margin: "65px auto",
+
+          padding: "35px",
+
+          background: "white",
+
+          borderRadius: "15px",
+
+          boxShadow: "0 5px 25px rgba(20,45,75,0.06)",
+
+        }}
+
+      >
+
+        <span
+
+          style={{
+
+            color: "#3475b6",
+
+            fontWeight: 700,
+
+            fontSize: "12px",
+
+          }}
+
+        >
+
+          {role.toUpperCase()} DASHBOARD
+
+        </span>
+
+        <h2>{title}</h2>
+
+        <p style={{ color: "#718096" }}>
+
+          Your account has been recognised successfully.
+
+          This dashboard is currently under development.
+
+        </p>
+
+        <h3>Planned functions</h3>
+
+        <ul style={{ lineHeight: 2.2, paddingLeft: "22px" }}>
+
+          {features.map((feature) => (
+
+            <li key={feature}>{feature}</li>
+
+          ))}
+
+        </ul>
+
+        <p style={{ color: "#8a96a8", fontSize: "13px" }}>
+
+          These features will be implemented in the next
+
+          development stage.
+
+        </p>
+
+      </section>
+
+    </main>
+
+  );
+
+}
+
 // ========================================
 
 // MAIN APPLICATION
@@ -2199,11 +2556,54 @@ function PlaceholderPage({ title, onBack }) {
 
 function App() {
 
+  const handleDemoLogin = async ({ email, password }) => {
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const role = DEMO_ACCOUNTS[normalizedEmail];
+
+  if (!role || password !== DEMO_PASSWORD) {
+
+    throw new Error("Invalid email address or password.");
+
+  }
+
+  setCurrentUser({
+
+    email: normalizedEmail,
+
+    role,
+
+  });
+
+  setActivePage("Home");
+
+  setActiveNav("Home");
+
+  setNotice("");
+
+};
+
+const handleLogout = () => {
+
+  setCurrentUser(null);
+
+  setActivePage("Home");
+
+  setActiveNav("Home");
+
+  setSelectedFile(null);
+
+  setNotice("");
+
+};
+
   const fileInputRef = useRef(null);
 
-  const [activeNav, setActiveNav] = useState("Home");
+  const [currentUser, setCurrentUser] = useState(null);
 
   const [activePage, setActivePage] = useState("Home");
+  const [activeNav, setActiveNav] = useState("Home");
 
   const [selectedFile, setSelectedFile] = useState(null);
 
@@ -2215,7 +2615,81 @@ function App() {
 
   // These are NOT saved to Firebase yet.
 
-  const [savedRecords, setSavedRecords] = useState({});
+  const [savedRecords, setSavedRecords] = useState(() => {
+
+  try {
+
+    const storedRecords = localStorage.getItem("energylens_saved_records");
+
+    return storedRecords ? JSON.parse(storedRecords) : {};
+
+  } catch (error) {
+
+    console.error("Unable to load records:", error);
+
+    return {};
+
+  }
+
+});
+
+// Save records to localStorage whenever records change
+
+useEffect(() => {
+
+  try {
+
+    localStorage.setItem(
+
+      "energylens_saved_records",
+
+      JSON.stringify(savedRecords)
+
+    );
+
+  } catch (error) {
+
+    console.error("Unable to save records:", error);
+
+  }
+
+}, [savedRecords]);
+
+// Synchronise records between browser tabs
+
+useEffect(() => {
+
+  const syncRecords = (event) => {
+
+    if (event.key === "energylens_saved_records") {
+
+      try {
+
+        setSavedRecords(
+
+          event.newValue ? JSON.parse(event.newValue) : {}
+
+        );
+
+      } catch (error) {
+
+        console.error("Unable to synchronise records:", error);
+
+      }
+
+    }
+
+  };
+
+  window.addEventListener("storage", syncRecords);
+
+  return () => {
+
+    window.removeEventListener("storage", syncRecords);
+
+  };
+
+}, []);
 
   // ========================================
 
@@ -2301,11 +2775,7 @@ function App() {
 
     if (page === "Logout") {
 
-      setNotice(
-
-        "Logout will be connected to Firebase Authentication."
-
-      );
+      handleLogout();
 
       return;
 
@@ -2403,6 +2873,128 @@ function App() {
 
   const currentRecordConfig = recordPageConfigs[activePage];
 
+  // TEMPORARY MANAGER DASHBOARD PREVIEW
+
+  // ========================================
+
+// LOGIN AND ROLE-BASED DASHBOARD ROUTING
+
+// ========================================
+
+if (!currentUser) {
+
+  return (
+
+    <LoginPage
+
+      onLogin={handleDemoLogin}
+
+    />
+
+  );
+
+}
+
+// MANAGER DASHBOARD
+
+if (currentUser.role === "manager") {
+
+  return (
+
+    <ManagerDashboard
+
+      records={savedRecords}
+
+      onUpdateRecord={(category, id, updatedFields) => {
+
+        setSavedRecords((current) => ({
+
+          ...current,
+
+          [category]: (current[category] || []).map((record) =>
+
+            String(record.id) === String(id)
+
+              ? {
+
+                  ...record,
+
+                  ...updatedFields,
+
+                  updatedAt: new Date().toLocaleString(),
+
+                }
+
+              : record
+
+          ),
+
+        }));
+
+      }}
+
+      onDeleteRecord={(category, id) => {
+
+        setSavedRecords((current) => ({
+
+          ...current,
+
+          [category]: (current[category] || []).filter(
+
+            (record) => String(record.id) !== String(id)
+
+          ),
+
+        }));
+
+      }}
+
+      onLogout={handleLogout}
+
+    />
+
+  );
+
+}
+
+// ANALYST DASHBOARD
+
+if (currentUser.role === "analyst") {
+
+  return (
+
+    <PendingRoleDashboard
+
+      role="analyst"
+
+      onLogout={handleLogout}
+
+    />
+
+  );
+
+}
+
+// STAKEHOLDER DASHBOARD
+
+if (currentUser.role === "stakeholder") {
+
+  return (
+
+    <PendingRoleDashboard
+
+      role="stakeholder"
+
+      onLogout={handleLogout}
+
+    />
+
+  );
+
+}
+
+// STAFF DASHBOARD CONTINUES BELOW
+
   return (
 
     <div className="app-shell">
@@ -2425,7 +3017,11 @@ function App() {
 
           <div className="welcome-section">
 
-            <h1>Welcome, test_staff!</h1>
+            <h1>
+
+  Welcome, {currentUser?.email.split("@")[0]}!
+
+</h1>
 
             <p>Your workspace is ready.</p>
 
