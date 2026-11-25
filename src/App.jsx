@@ -6,6 +6,9 @@ import ManagerDashboard from "./ManagerDashboard";
 
 import LoginPage from "./LoginPage";
 
+import AnalystDashboard from "./AnalystDashboard";
+
+import StakeholderDashboard from "./StakeholderDashboard";
 import {
 
   ChartNoAxesCombined,
@@ -2978,41 +2981,31 @@ if (currentUser.role === "manager") {
 
 }
 
+
 // ANALYST DASHBOARD
 
 if (currentUser.role === "analyst") {
-
   return (
-
-    <PendingRoleDashboard
-
-      role="analyst"
-
+    <AnalystDashboard
+      user={currentUser}
       onLogout={handleLogout}
-
     />
-
   );
-
 }
+
+
 
 // STAKEHOLDER DASHBOARD
 
 if (currentUser.role === "stakeholder") {
-
   return (
-
-    <PendingRoleDashboard
-
-      role="stakeholder"
-
+    <StakeholderDashboard
+      user={currentUser}
       onLogout={handleLogout}
-
     />
-
   );
-
 }
+
 
 // STAFF DASHBOARD CONTINUES BELOW
 
