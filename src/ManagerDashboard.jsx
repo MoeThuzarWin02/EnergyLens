@@ -3,6 +3,7 @@ import ProfilePage from "./components/ProfilePage";
 import {
   createManagedUser,
   setManagedUserStatus,
+  assignUserFacilities,
 } from "./services/managerUserService";
 import {
   getAllFacilities,
@@ -176,6 +177,9 @@ export default function ManagerDashboard({
   const [newFacility, setNewFacility] = useState(EMPTY_FACILITY);
   const [editingFacility, setEditingFacility] = useState(null);
   const [userSaving, setUserSaving] = useState(false);
+  const [assignmentUser, setAssignmentUser] = useState(null);
+  const [selectedFacilityIds, setSelectedFacilityIds] = useState([]);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
 
   // Load all user profiles from Firestore, including inactive accounts.
   useEffect(() => {
@@ -201,6 +205,9 @@ export default function ManagerDashboard({
             email: data.email || "",
             role: String(data.role || "staff").toLowerCase(),
             status: data.active === true ? "Active" : "Inactive",
+            facilityIds: Array.isArray(data.facilityIds)
+              ? data.facilityIds
+              : [],
           };
         });
 
@@ -233,6 +240,45 @@ export default function ManagerDashboard({
     };
   }, []);
 
+
+  // Load facilities automatically from Firestore.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFacilities = async () => {
+      try {
+        setFacilitiesLoading(true);
+        setFacilitiesError("");
+
+        const loadedFacilities = await getAllFacilities();
+
+        if (!cancelled) {
+          setFacilities(loadedFacilities);
+        }
+      } catch (error) {
+        console.error(
+          "Unable to load facilities from Firestore:",
+          error
+        );
+
+        if (!cancelled) {
+          setFacilitiesError(
+            error.message || "Unable to load facilities."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setFacilitiesLoading(false);
+        }
+      }
+    };
+
+    loadFacilities();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const allRecords = useMemo(
     () => Object.entries(managedRecords || {}).flatMap(([category, items]) =>
@@ -558,6 +604,61 @@ const openFacilityEditor = (facility) => {
     }
   };
 
+
+const openFacilityAssignment = (user) => {
+  if (!["staff", "analyst"].includes(user.role)) {
+    showNotice(
+      "Only Staff and Analysts can receive facility assignments."
+    );
+    return;
+  }
+
+  setAssignmentUser(user);
+  setSelectedFacilityIds(
+    Array.isArray(user.facilityIds)
+      ? user.facilityIds
+      : []
+  );
+  setModal("assignFacilities");
+};
+
+const saveFacilityAssignments = async (event) => {
+  event.preventDefault();
+
+  if (!assignmentUser) return;
+
+  try {
+    setAssignmentSaving(true);
+
+    const savedIds = await assignUserFacilities(
+      assignmentUser.id,
+      selectedFacilityIds
+    );
+
+    setUsers((current) =>
+      current.map((user) =>
+        user.id === assignmentUser.id
+          ? { ...user, facilityIds: savedIds }
+          : user
+      )
+    );
+
+    setModal("");
+    setAssignmentUser(null);
+
+    showNotice("Facility assignments saved successfully.");
+  } catch (error) {
+    console.error("Unable to save facility assignments:", error);
+
+    showNotice(
+      error.message || "Unable to save facility assignments."
+    );
+  } finally {
+    setAssignmentSaving(false);
+  }
+};
+
+
   const openRecordEditor = (record) => {
     const editableFields = Object.fromEntries(
       Object.entries(record).filter(([key, value]) =>
@@ -701,7 +802,16 @@ const openFacilityEditor = (facility) => {
         {usersError && <p className="manager-footnote" role="alert">{usersError}</p>}
         <div className="manager-table-wrap">
           <table className="manager-table">
-            <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
+            <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Facilities</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
             <tbody>
               {filteredUsers.map((user) => (
                 <tr key={user.id}>
@@ -709,7 +819,39 @@ const openFacilityEditor = (facility) => {
                   <td>{user.email}</td>
                   <td><select className="manager-role-select" value={user.role} onChange={(event) => updateUserRole(user.id, event.target.value)}><option value="manager">Manager</option><option value="analyst">Analyst</option><option value="staff">Staff</option><option value="stakeholder">Stakeholder</option></select></td>
                   <td><span className={`manager-status-pill ${user.status === "Active" ? "active" : "inactive"}`}>{user.status}</span></td>
-                  <td><button type="button" className="manager-text-button" onClick={() => toggleUserStatus(user.id)}>{user.status === "Active" ? "Deactivate" : "Activate"}</button></td>
+                  <td>
+  {user.role === "staff" || user.role === "analyst" ? (
+    <button
+      type="button"
+      className="manager-text-button"
+      onClick={() => openFacilityAssignment(user)}
+    >
+      Assign ({user.facilityIds?.length || 0})
+    </button>
+  ) : (
+    <span className="manager-footnote">Not applicable</span>
+  )}
+</td>
+
+<td>
+  <span
+    className={`manager-status-pill ${
+      user.status === "Active" ? "active" : "inactive"
+    }`}
+  >
+    {user.status}
+  </span>
+</td>
+
+<td>
+  <button
+    type="button"
+    className="manager-text-button"
+    onClick={() => toggleUserStatus(user.id)}
+  >
+    {user.status === "Active" ? "Deactivate" : "Activate"}
+  </button>
+</td>
                 </tr>
               ))}
             </tbody>
@@ -1080,38 +1222,194 @@ const renderFacilities = () => (
 
       {notice && <div className="manager-toast" role="status"><CheckCircle2 size={17} />{notice}<button type="button" onClick={() => setNotice("")} aria-label="Dismiss"><X size={15} /></button></div>}
 
-      {modal === "user" && (
-        <Modal
-          title="Create User Account"
-          onClose={() => {
-            if (!userSaving) setModal("");
+
+{modal === "user" && (
+  <Modal
+    title="Create User Account"
+    onClose={() => {
+      if (!userSaving) {
+        setModal("");
+      }
+    }}
+  >
+    <form
+      className="manager-form"
+      onSubmit={addUser}
+    >
+      <label>
+        Full name
+        <input
+          required
+          value={newUser.name}
+          onChange={(event) =>
+            setNewUser({
+              ...newUser,
+              name: event.target.value,
+            })
+          }
+          placeholder="Enter full name"
+        />
+      </label>
+
+      <label>
+        Email address
+        <input
+          required
+          type="email"
+          value={newUser.email}
+          onChange={(event) =>
+            setNewUser({
+              ...newUser,
+              email: event.target.value,
+            })
+          }
+          placeholder="name@example.com"
+        />
+      </label>
+
+      <label>
+        Assigned role
+        <select
+          value={newUser.role}
+          onChange={(event) =>
+            setNewUser({
+              ...newUser,
+              role: event.target.value,
+            })
+          }
+        >
+          <option value="Manager">Manager</option>
+          <option value="Analyst">Analyst</option>
+          <option value="Staff">Staff</option>
+          <option value="Stakeholder">Stakeholder</option>
+        </select>
+      </label>
+
+      <div className="manager-form-actions">
+        <button
+          type="button"
+          className="manager-secondary-button"
+          disabled={userSaving}
+          onClick={() => setModal("")}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="submit"
+          className="manager-primary-button"
+          disabled={userSaving}
+        >
+          {userSaving ? "Creating..." : "Create User"}
+        </button>
+      </div>
+    </form>
+  </Modal>
+)}
+
+      
+{modal === "assignFacilities" && assignmentUser && (
+  <Modal
+    title="Assign Facilities"
+    onClose={() => {
+      if (assignmentSaving) return;
+      setModal("");
+      setAssignmentUser(null);
+    }}
+  >
+    <form
+      className="manager-form"
+      onSubmit={saveFacilityAssignments}
+    >
+      <div>
+        <strong>{assignmentUser.name}</strong>
+        <p className="manager-footnote">
+          {assignmentUser.email}
+        </p>
+        <p className="manager-footnote">
+          Select the facilities this user is allowed to access.
+        </p>
+      </div>
+
+      {facilitiesLoading ? (
+        <p>Loading facilities...</p>
+      ) : facilitiesError ? (
+        <p className="manager-footnote" role="alert">
+          {facilitiesError}
+        </p>
+      ) : facilities.length === 0 ? (
+        <p className="manager-footnote">
+          No active facilities are available.
+        </p>
+      ) : (
+        <div className="manager-facility-assignment-list">
+          {facilities.map((facility) => (
+            <label
+              key={facility.facilityId}
+              className="manager-facility-assignment-item"
+            >
+              <input
+                type="checkbox"
+                checked={selectedFacilityIds.includes(
+                  facility.facilityId
+                )}
+                onChange={(event) => {
+                  setSelectedFacilityIds((current) =>
+                    event.target.checked
+                      ? [...current, facility.facilityId]
+                      : current.filter(
+                          (id) => id !== facility.facilityId
+                        )
+                  );
+                }}
+              />
+
+              <span>
+                <strong>{facility.facilityName}</strong>
+                <small>
+                  {facility.location} · {facility.facilityType}
+                </small>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      <p className="manager-footnote">
+        {selectedFacilityIds.length} facilities selected.
+      </p>
+
+      <div className="manager-form-actions">
+        <button
+          type="button"
+          className="manager-secondary-button"
+          disabled={assignmentSaving}
+          onClick={() => {
+            setModal("");
+            setAssignmentUser(null);
           }}
         >
-          <form className="manager-form" onSubmit={addUser}>
-            <label>Full name<input required value={newUser.name} onChange={(event) => setNewUser({ ...newUser, name: event.target.value })} placeholder="Enter full name" /></label>
-            <label>Email address<input required type="email" value={newUser.email} onChange={(event) => setNewUser({ ...newUser, email: event.target.value })} placeholder="name@example.com" /></label>
-            <label>Assigned role<select value={newUser.role} onChange={(event) => setNewUser({ ...newUser, role: event.target.value })}><option>Manager</option><option>Analyst</option><option>Staff</option><option>Stakeholder</option></select></label>
-            <div className="manager-form-actions">
-  <button
-    type="button"
-    className="manager-secondary-button"
-    disabled={userSaving}
-    onClick={() => setModal("")}
-  >
-    Cancel
-  </button>
+          Cancel
+        </button>
 
-  <button
-    type="submit"
-    className="manager-primary-button"
-    disabled={userSaving}
-  >
-    {userSaving ? "Creating Account..." : "Create Account"}
-  </button>
-</div>
-          </form>
-        </Modal>
-      )}
+        <button
+          type="submit"
+          className="manager-primary-button"
+          disabled={
+            assignmentSaving ||
+            facilitiesLoading ||
+            Boolean(facilitiesError)
+          }
+        >
+          {assignmentSaving
+            ? "Saving..."
+            : "Save Assignments"}
+        </button>
+      </div>
+    </form>
+  </Modal>
+)}
+
 
       {modal === "facility" && (
         <Modal
