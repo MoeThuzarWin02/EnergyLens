@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  loginUser,
+  logoutUser,
+  resetUserPassword,
+  observeAuthState,
+} from "./services/authService";
+
+import { getCurrentUserProfile } from "./services/userService";
+
 import { BrowserMultiFormatReader } from "@zxing/browser";
 
 import ManagerDashboard from "./ManagerDashboard";
@@ -2346,19 +2355,7 @@ function PlaceholderPage({ title, onBack }) {
 
 }
 
-const DEMO_PASSWORD = "EnergyLens123!";
 
-const DEMO_ACCOUNTS = {
-
-  "manager@energylens.demo": "manager",
-
-  "analyst@energylens.demo": "analyst",
-
-  "staff@energylens.demo": "staff",
-
-  "stakeholder@energylens.demo": "stakeholder",
-
-};
 
 function PendingRoleDashboard({ role, onLogout }) {
 
@@ -2556,51 +2553,42 @@ function PendingRoleDashboard({ role, onLogout }) {
 
 function App() {
 
-  const handleDemoLogin = async ({ email, password }) => {
-
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const role = DEMO_ACCOUNTS[normalizedEmail];
-
-  if (!role || password !== DEMO_PASSWORD) {
-
-    throw new Error("Invalid email address or password.");
-
-  }
+const handleLogin = async ({ email, password }) => {
+  const { authUser, profile } = await loginUser(
+    email,
+    password
+  );
 
   setCurrentUser({
-
-    email: normalizedEmail,
-
-    role,
-
+    uid: authUser.uid,
+    email: authUser.email,
+    ...profile,
   });
 
   setActivePage("Home");
-
   setActiveNav("Home");
-
   setNotice("");
-
 };
 
-const handleLogout = () => {
+const handleLogout = async () => {
+  try {
+    await logoutUser();
 
-  setCurrentUser(null);
-
-  setActivePage("Home");
-
-  setActiveNav("Home");
-
-  setSelectedFile(null);
-
-  setNotice("");
-
+    setCurrentUser(null);
+    setActivePage("Home");
+    setActiveNav("Home");
+    setSelectedFile(null);
+    setNotice("");
+  } catch (error) {
+    console.error("Logout failed:", error);
+    setNotice("Unable to log out. Please try again.");
+  }
 };
 
   const fileInputRef = useRef(null);
 
   const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const [activePage, setActivePage] = useState("Home");
   const [activeNav, setActiveNav] = useState("Home");
@@ -2610,6 +2598,61 @@ const handleLogout = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   const [notice, setNotice] = useState("");
+  // RESTORE FIREBASE AUTHENTICATION SESSION
+useEffect(() => {
+  let isMounted = true;
+
+  const unsubscribe = observeAuthState(async (authUser) => {
+    if (!authUser) {
+      if (isMounted) {
+        setCurrentUser(null);
+        setIsAuthLoading(false);
+      }
+      return;
+    }
+
+    try {
+      const profile = await getCurrentUserProfile(authUser.uid);
+
+      if (!profile || profile.active !== true) {
+        await logoutUser();
+
+        if (isMounted) {
+          setCurrentUser(null);
+          setNotice(
+            "Your account is inactive. Contact your Manager."
+          );
+          setIsAuthLoading(false);
+        }
+
+        return;
+      }
+
+      if (isMounted) {
+        setCurrentUser({
+          uid: authUser.uid,
+          email: authUser.email,
+          ...profile,
+        });
+
+        setIsAuthLoading(false);
+      }
+    } catch (error) {
+      console.error("Authentication session error:", error);
+
+      if (isMounted) {
+        setCurrentUser(null);
+        setNotice("Unable to restore your session.");
+        setIsAuthLoading(false);
+      }
+    }
+  });
+
+  return () => {
+    isMounted = false;
+    unsubscribe();
+  };
+}, []);
 
   // Temporary frontend records.
 
@@ -2881,14 +2924,32 @@ useEffect(() => {
 
 // ========================================
 
+// WAIT FOR FIREBASE AUTHENTICATION
+if (isAuthLoading) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        flexDirection: "column",
+        gap: "12px",
+      }}
+    >
+      <div className="loading-spinner" />
+      <p>Checking your EnergyLens account...</p>
+    </div>
+  );
+}
+
 if (!currentUser) {
 
   return (
 
     <LoginPage
-
-      onLogin={handleDemoLogin}
-
+      onLogin={handleLogin}
+      onForgotPassword={resetUserPassword}
     />
 
   );
@@ -2903,6 +2964,7 @@ if (currentUser.role === "manager") {
 
     <ManagerDashboard
 
+      currentUser={currentUser}
       records={savedRecords}
 
       onUpdateRecord={(category, id, updatedFields) => {

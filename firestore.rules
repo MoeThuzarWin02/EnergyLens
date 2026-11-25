@@ -1,0 +1,214 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // AUTHENTICATION AND ROLE HELPERS
+    // ==========================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userProfile() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function isActiveUser() {
+      return isAuthenticated()
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        )
+        && userProfile().active == true;
+    }
+
+    function hasRole(role) {
+      return isActiveUser()
+        && userProfile().role == role;
+    }
+
+    function isManager() {
+      return hasRole('manager');
+    }
+
+    function isAnalyst() {
+      return hasRole('analyst');
+    }
+
+    function isStaff() {
+      return hasRole('staff');
+    }
+
+    function canViewOCR() {
+      return isManager() || isAnalyst() || isStaff();
+    }
+
+    function canUploadOCR() {
+      return isManager() || isStaff();
+    }
+
+    function canCorrectOCR() {
+      return isManager() || isStaff();
+    }
+
+    function canApproveOCR() {
+      return isManager() || isStaff();
+    }
+
+    // ==========================================
+    // USERS COLLECTION
+    // ==========================================
+
+    match /users/{userId} {
+
+      // Users can read their own profile.
+      // Managers can read all user profiles.
+      allow get: if isAuthenticated()
+        && (
+            request.auth.uid == userId
+            || isManager()
+        );
+
+      allow list: if isManager();
+
+      // Only managers can create user profiles.
+      allow create: if isManager()
+        && request.resource.data.role in [
+          'manager',
+          'analyst',
+          'staff',
+          'stakeholder'
+        ]
+        && request.resource.data.active is bool;
+
+      // Only managers can update or deactivate accounts.
+      allow update: if isManager()
+        && request.resource.data.role in [
+          'manager',
+          'analyst',
+          'staff',
+          'stakeholder'
+        ]
+        && request.resource.data.active is bool;
+
+      allow delete: if isManager();
+    }
+
+    // ==========================================
+    // OCR DOCUMENTS COLLECTION
+    // ==========================================
+
+    match /ocrDocuments/{documentId} {
+
+      // Manager, Analyst and Staff can view OCR documents.
+      allow get, list: if canViewOCR();
+
+      // Only Manager and Staff can upload.
+      allow create: if canUploadOCR()
+        && request.resource.data.uploadedBy == request.auth.uid
+        && request.resource.data.status == 'review_required'
+        && request.resource.data.facilityId is string
+        && request.resource.data.fileName is string
+        && request.resource.data.extractedData is map
+        && request.resource.data.correctedData is map;
+
+      // Manager, Analyst and Staff: review only.
+      // This update cannot modify extracted or corrected data.
+      
+    allow update: if canViewOCR()
+    && request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasOnly([
+        'reviewedBy',
+        'reviewedAt',
+        'updatedAt'
+        ])
+    && request.resource.data.reviewedBy == request.auth.uid;
+
+
+      // Manager and Staff: correction.
+      allow update: if canCorrectOCR()
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'correctedData',
+            'correctedBy',
+            'correctedAt',
+            'status',
+            'reviewRequired',
+            'updatedAt'
+          ])
+        && request.resource.data.correctedBy == request.auth.uid
+        && request.resource.data.status == 'corrected';
+
+      // Manager and Staff: approval.
+      allow update: if canApproveOCR()
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'status',
+            'reviewRequired',
+            'approvedBy',
+            'approvedAt',
+            'updatedAt'
+          ])
+        && request.resource.data.status == 'approved'
+        && request.resource.data.approvedBy == request.auth.uid
+        && resource.data.status in [
+          'review_required',
+          'corrected'
+        ];
+
+      // Manager and Staff: rejection.
+      allow update: if canCorrectOCR()
+        && request.resource.data.diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'status',
+            'reviewRequired',
+            'rejectedBy',
+            'rejectionReason',
+            'rejectedAt',
+            'updatedAt'
+          ])
+        && request.resource.data.status == 'rejected'
+        && request.resource.data.rejectedBy == request.auth.uid
+        && request.resource.data.rejectionReason is string;
+
+      // Only Manager can delete OCR metadata.
+      allow delete: if isManager();
+    }
+
+    // ==========================================
+    // AUDIT LOGS COLLECTION
+    // ==========================================
+
+    match /auditLogs/{logId} {
+
+      // Only Managers can read audit logs.
+      allow get, list: if isManager();
+
+      // Authenticated users can create their own audit entries.
+      allow create: if isActiveUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userRole == userProfile().role
+        && request.resource.data.action is string
+        && request.resource.data.entityType is string;
+
+      // Audit logs cannot be modified or deleted.
+      allow update, delete: if false;
+    }
+
+    // ==========================================
+    // DEFAULT DENY
+    // ==========================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
