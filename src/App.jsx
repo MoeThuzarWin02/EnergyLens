@@ -2575,6 +2575,595 @@ function PendingRoleDashboard({ role, onLogout }) {
 
 }
 
+function OCRReviewPanel({
+  selectedFile,
+  extractedData,
+  documents,
+  onFieldChange,
+  onApprove,
+  onReject,
+}) {
+  const [previewUrl, setPreviewUrl] = useState("");
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl("");
+      return;
+    }
+
+    const url = URL.createObjectURL(selectedFile);
+
+    setPreviewUrl(url);
+
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
+
+  const isPdf =
+    selectedFile?.type === "application/pdf" ||
+    /\.pdf$/i.test(selectedFile?.name || "");
+
+  const fields = [
+    {
+      key: "consumptionKwh",
+      label: "Energy Consumption (kWh)",
+      type: "number",
+    },
+    {
+      key: "electricityCost",
+      label: "Electricity Cost (RM)",
+      type: "number",
+    },
+    {
+      key: "billingPeriod",
+      label: "Billing Period",
+      type: "text",
+    },
+    {
+      key: "peakDemandKw",
+      label: "Peak Demand (kW)",
+      type: "number",
+    },
+    {
+      key: "tariffRate",
+      label: "Tariff Rate (RM/kWh)",
+      type: "number",
+    },
+  ];
+
+  return (
+    <article className="dashboard-panel ocr-workspace-panel">
+
+      <PanelHeader
+        icon={ScanLine}
+        title="OCR Document Review"
+      />
+
+      <div className="ocr-workspace-content">
+
+        <div className="ocr-review-grid">
+
+          {/* DOCUMENT PREVIEW */}
+
+          <section className="ocr-preview-card">
+
+            <h3>Document Preview</h3>
+
+            <p>
+              Preview your selected electricity bill or document.
+            </p>
+
+            <div className="ocr-document-preview">
+
+              {!selectedFile ? (
+                <div className="ocr-empty-preview">
+                  <CloudUpload size={42} />
+
+                  <strong>No document selected</strong>
+
+                  <span>
+                    Upload a document using Smart Document Import.
+                  </span>
+                </div>
+              ) : isPdf ? (
+                <iframe
+                  src={previewUrl}
+                  title="PDF document preview"
+                />
+              ) : (
+                <img
+                  src={previewUrl}
+                  alt="Uploaded electricity document"
+                />
+              )}
+
+            </div>
+
+            {selectedFile && (
+              <div className="ocr-file-information">
+
+                <FileText size={18} />
+
+                <span>{selectedFile.name}</span>
+
+              </div>
+            )}
+
+          </section>
+
+          {/* EXTRACTION RESULTS */}
+
+          <section className="ocr-results-card">
+
+            <h3>Extraction Results</h3>
+
+            <p>
+              Review and correct the information extracted
+              from your electricity document.
+            </p>
+
+            {!extractedData ? (
+
+              <div className="ocr-empty-results">
+
+                <ScanLine size={38} />
+
+                <strong>No extraction results yet</strong>
+
+                <span>
+                  Select a document and click Extract Document
+                  to generate demonstration results.
+                </span>
+
+              </div>
+
+            ) : (
+
+              <>
+
+                <div className="ocr-review-status">
+
+                  <span>Processing Status</span>
+
+                  <strong>{extractedData.status}</strong>
+
+                </div>
+
+                <div className="ocr-fields-grid">
+
+                  {fields.map((field) => (
+
+                    <div
+                      className="ocr-field"
+                      key={field.key}
+                    >
+
+                      <label htmlFor={`ocr-${field.key}`}>
+                        {field.label}
+                      </label>
+
+                      <input
+                        id={`ocr-${field.key}`}
+                        type={field.type}
+                        step="any"
+                        value={extractedData[field.key]}
+                        onChange={(event) =>
+                          onFieldChange(
+                            field.key,
+                            event.target.value
+                          )
+                        }
+                        disabled={
+                          extractedData.status !== "Pending Review"
+                        }
+                      />
+
+                    </div>
+
+                  ))}
+
+                </div>
+
+                {extractedData.status === "Pending Review" && (
+
+                  <div className="ocr-review-actions">
+
+                    <button
+                      type="button"
+                      className="ocr-approve-button"
+                      onClick={onApprove}
+                    >
+                      <CheckCircle2 size={17} />
+                      Approve Document
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ocr-reject-button"
+                      onClick={onReject}
+                    >
+                      <X size={17} />
+                      Reject Document
+                    </button>
+
+                  </div>
+
+                )}
+
+              </>
+
+            )}
+
+          </section>
+
+        </div>
+
+        {/* DOCUMENT HISTORY */}
+
+        <section className="ocr-history-card">
+
+          <div className="ocr-history-heading">
+
+            <div>
+              <h3>Document History</h3>
+
+              <p>
+                Review uploaded documents and their processing status.
+              </p>
+            </div>
+
+            <span>{documents.length} Documents</span>
+
+          </div>
+
+          {documents.length === 0 ? (
+
+            <div className="ocr-history-empty">
+              No uploaded documents yet.
+            </div>
+
+          ) : (
+
+            <div className="ocr-history-table-wrap">
+
+              <table className="ocr-history-table">
+
+                <thead>
+                  <tr>
+                    <th>Document Name</th>
+                    <th>Upload Date</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+
+                  {documents.map((document) => (
+
+                    <tr key={document.id}>
+
+                      <td>
+                        <FileText size={17} />
+                        {document.fileName}
+                      </td>
+
+                      <td>{document.uploadedAt}</td>
+
+                      <td>
+
+                        <span
+                          className={`ocr-status ${
+                            document.status === "Approved"
+                              ? "approved"
+                              : document.status === "Rejected"
+                              ? "rejected"
+                              : "pending"
+                          }`}
+                        >
+                          {document.status}
+                        </span>
+
+                      </td>
+
+                    </tr>
+
+                  ))}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          )}
+
+        </section>
+
+      </div>
+
+    </article>
+  );
+}
+
+function DocumentExtractionPage({ selectedFile, onBack, onSave }) {
+  const [formType, setFormType] = useState("Energy Data Entry");
+  const [formValues, setFormValues] = useState({});
+  const [isExtracted, setIsExtracted] = useState(false);
+  const [showExtractedText, setShowExtractedText] = useState(false);
+  const [extractedText, setExtractedText] = useState("");
+
+  const config = entryPages[formType];
+  const Icon = config.icon;
+
+  const handleExtractAndFill = () => {
+    const emptyValues = {};
+
+    config.sections.forEach((section) => {
+      section.fields.forEach((field) => {
+        emptyValues[field.name] = "";
+      });
+    });
+
+    // Temporary demonstration values.
+    // Replace these with actual OCR API results later.
+    const demoValues = {
+      "Energy Data Entry": {
+        energy_source: "Electricity",
+        meter_type: "Main Meter",
+        consumption: "12500",
+        consumption_unit: "kWh",
+        demand: "85",
+        demand_unit: "kW",
+      },
+
+      "Cost Data Entry": {
+        cost_category: "Electricity",
+        currency: "MYR (RM)",
+        amount: "6250.00",
+        total_amount: "6250.00",
+      },
+    };
+
+    setFormValues({
+      ...emptyValues,
+      ...(demoValues[formType] || {}),
+    });
+
+    setExtractedText(
+      `DEMO MODE — OCR NOT CONNECTED
+
+Uploaded document: ${selectedFile?.name || "Unknown"}
+
+The actual Malay text from your electricity bill has not been extracted yet.
+
+The OCR and Malay-to-English translation service will be integrated later.
+
+The values currently displayed in the form are demonstration values, not verified information from your uploaded bill.`
+    );
+
+    setIsExtracted(true);
+    setShowExtractedText(false);
+  };
+
+  const handleFieldChange = (name, value) => {
+    setFormValues((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const handleSave = (event) => {
+    event.preventDefault();
+    onSave(config.title, formValues);
+  };
+
+  return (
+    <section className="document-extraction-page">
+
+      <div className="document-extraction-toolbar">
+        <button
+          type="button"
+          className="back-home-button"
+          onClick={onBack}
+        >
+          <ArrowLeft size={17} />
+          Back to Dashboard
+        </button>
+
+        <span>DOCUMENT PROCESSING WORKSPACE</span>
+      </div>
+
+      <div className="document-extraction-heading">
+        <div className="document-extraction-icon">
+          <ScanLine size={27} />
+        </div>
+
+        <div>
+          <span>SMART DOCUMENT IMPORT</span>
+          <h1>Document Extraction</h1>
+          <p>
+            Extract information from Malaysian utility bills
+            and transfer it into the appropriate data entry form.
+          </p>
+        </div>
+      </div>
+
+      <div className="document-source-strip">
+        <FileText size={22} />
+
+        <div>
+          <strong>{selectedFile?.name}</strong>
+          <span>Uploaded document</span>
+        </div>
+
+        <span className="document-source-status">
+          Ready for processing
+        </span>
+      </div>
+
+      <div className="document-extraction-workspace">
+
+        <div className="document-extraction-controls">
+
+          <div>
+            <span className="extraction-step">STEP 01</span>
+            <h2>Select Data Entry Form</h2>
+            <p>
+              Choose the destination form for the extracted information.
+            </p>
+          </div>
+
+          <div className="extraction-form-selector">
+            <label htmlFor="extraction-form-type">
+              Form Type
+            </label>
+
+            <select
+              id="extraction-form-type"
+              value={formType}
+              onChange={(event) => {
+                setFormType(event.target.value);
+                setIsExtracted(false);
+                setFormValues({});
+                setShowExtractedText(false);
+              }}
+            >
+              {Object.keys(entryPages).map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            className="extraction-start-button"
+            onClick={handleExtractAndFill}
+          >
+            <ScanLine size={18} />
+            Extract & Fill Form
+          </button>
+
+        </div>
+
+        {isExtracted ? (
+
+          <form
+            className="document-extraction-form"
+            onSubmit={handleSave}
+          >
+
+            <div className="extraction-results-heading">
+              <div className="document-extraction-icon">
+                <Icon size={23} />
+              </div>
+
+              <div>
+                <span className="extraction-step">STEP 02</span>
+                <h2>{config.title}</h2>
+                <p>
+                  Review and edit the information before saving.
+                </p>
+              </div>
+
+              <span className="extraction-demo-status">
+                Demonstration Data
+              </span>
+            </div>
+
+            {config.sections.map((section, index) => (
+
+              <section
+                className="entry-section extraction-entry-section"
+                key={section.title}
+              >
+
+                <div className="entry-section-heading">
+                  <span className="section-number">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+
+                  <h2>{section.title}</h2>
+                </div>
+
+                <div className="entry-fields-grid">
+
+                  {section.fields.map((field) => (
+                    <EntryField
+                      key={field.name}
+                      field={field}
+                      value={formValues[field.name] ?? ""}
+                      onChange={handleFieldChange}
+                    />
+                  ))}
+
+                </div>
+
+              </section>
+
+            ))}
+
+            <div className="document-extraction-footer">
+
+              <button
+                type="button"
+                className="view-extracted-text-button"
+                onClick={() =>
+                  setShowExtractedText((current) => !current)
+                }
+                aria-expanded={showExtractedText}
+              >
+                <FileText size={17} />
+                {showExtractedText
+                  ? "Hide Extracted Text"
+                  : "View Extracted Text"}
+              </button>
+
+              <button
+                type="submit"
+                className="entry-save-button"
+              >
+                <Save size={17} />
+                Save Entry
+              </button>
+
+            </div>
+
+            {showExtractedText && (
+              <div className="extracted-text-panel">
+                <div className="extracted-text-heading">
+                  <strong>Extracted Document Text</strong>
+                  <span>English translation / OCR output</span>
+                </div>
+
+                <pre>{extractedText}</pre>
+              </div>
+            )}
+
+          </form>
+
+        ) : (
+
+          <div className="extraction-empty-state">
+            <ScanLine size={35} />
+
+            <strong>Ready to extract your document</strong>
+
+            <p>
+              Select the appropriate form type above and click
+              Extract & Fill Form to continue.
+            </p>
+          </div>
+
+        )}
+
+      </div>
+
+    </section>
+  );
+}
+
+
 // ========================================
 
 // MAIN APPLICATION
@@ -2630,6 +3219,10 @@ const handleLogout = () => {
   const [activeNav, setActiveNav] = useState("Home");
 
   const [selectedFile, setSelectedFile] = useState(null);
+
+  // Temporary OCR demo data
+const [extractedData, setExtractedData] = useState(null);
+const [ocrDocuments, setOcrDocuments] = useState([]);
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -2744,12 +3337,12 @@ useEffect(() => {
     }
 
     setSelectedFile(file);
-
+    setExtractedData(null);
     setNotice("");
 
   };
-
   const handleFileChange = (event) => {
+
 
     const file = event.target.files?.[0];
 
@@ -2870,22 +3463,46 @@ useEffect(() => {
   // ========================================
 
   const handleExtract = () => {
-
     if (!selectedFile) {
-
       setNotice("Please upload a document before extracting.");
-
       return;
-
     }
 
-    setNotice(
+    setExtractedData(null);
+    setNotice("");
+    setActiveNav("Home");
+    setActivePage("Document Extraction");
+  };
 
-      `${selectedFile.name} is ready. OCR integration will be connected later.`
+  const handleOCRFieldChange = (field, value) => {
+    setExtractedData((current) =>
+      current ? { ...current, [field]: value } : current
+    );
+  };
 
+  const handleOCRDecision = (decision) => {
+    if (!extractedData || extractedData.status !== "Pending Review") {
+      return;
+    }
+
+    setOcrDocuments((current) =>
+      current.map((document) =>
+        document.id === extractedData.id
+          ? { ...document, status: decision }
+          : document
+      )
     );
 
+    setExtractedData((current) => ({
+      ...current,
+      status: decision,
+    }));
+
+    setNotice(
+      `Document ${decision.toLowerCase()} successfully in demo mode.`
+    );
   };
+
 
   // ========================================
 
@@ -3313,8 +3930,15 @@ if (currentUser.role === "stakeholder") {
 
           </section>
 
-        ) : currentEntryConfig ? (
+        ) : activePage === "Document Extraction" ? (
 
+          <DocumentExtractionPage
+            selectedFile={selectedFile}
+            onBack={handleBackHome}
+            onSave={handleSaveEntry}
+          />
+
+        ) : currentEntryConfig ? (
           <EntryPage
 
             key={activePage}
