@@ -9,7 +9,12 @@ import {
   updateFacility,
   archiveFacility,
 } from "./services/facilityService";
-import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "./firebase/firestore";
 import {
   Activity,
@@ -168,19 +173,27 @@ export default function ManagerDashboard({
   const [editingFacility, setEditingFacility] = useState(null);
   const [userSaving, setUserSaving] = useState(false);
 
-  // Load real user profiles from Firestore. The Manager role must be
-  // authorised by firestore.rules to list and update the users collection.
+  // Load all user profiles from Firestore, including inactive accounts.
   useEffect(() => {
     let cancelled = false;
 
     const loadUsers = async () => {
       try {
-        const snapshot = await getDocs(collection(db, "users"));
+        const snapshot = await getDocs(
+          collection(db, "users")
+        );
+
         const loadedUsers = snapshot.docs.map((userDoc) => {
           const data = userDoc.data();
+
           return {
             id: userDoc.id,
-            name: data.displayName || data.name || data.fullName || data.email || "Unnamed user",
+            name:
+              data.displayName ||
+              data.name ||
+              data.fullName ||
+              data.email ||
+              "Unnamed user",
             email: data.email || "",
             role: String(data.role || "staff").toLowerCase(),
             status: data.active === true ? "Active" : "Inactive",
@@ -192,56 +205,30 @@ export default function ManagerDashboard({
           setUsersError("");
         }
       } catch (error) {
-        console.error("Unable to load users from Firestore:", error);
+        console.error(
+          "Unable to load users from Firestore:",
+          error
+        );
+
         if (!cancelled) {
-          setUsersError(error.message || "Unable to load user accounts.");
+          setUsersError(
+            error.message || "Unable to load user accounts."
+          );
         }
       } finally {
-        if (!cancelled) setUsersLoading(false);
+        if (!cancelled) {
+          setUsersLoading(false);
+        }
       }
     };
 
     loadUsers();
+
     return () => {
       cancelled = true;
     };
   }, []);
 
-
-useEffect(() => {
-  let cancelled = false;
-
-  async function loadFacilities() {
-    try {
-      setFacilitiesLoading(true);
-      setFacilitiesError("");
-
-      const result = await getAllFacilities();
-
-      if (!cancelled) {
-        setFacilities(result);
-      }
-    } catch (error) {
-      console.error("Unable to load facilities:", error);
-
-      if (!cancelled) {
-        setFacilitiesError(
-          error.message || "Unable to load facilities."
-        );
-      }
-    } finally {
-      if (!cancelled) {
-        setFacilitiesLoading(false);
-      }
-    }
-  }
-
-  loadFacilities();
-
-  return () => {
-    cancelled = true;
-  };
-}, []);
 
   const allRecords = useMemo(
     () => Object.entries(managedRecords || {}).flatMap(([category, items]) =>

@@ -15,6 +15,9 @@ import ManagerDashboard from "./ManagerDashboard";
 
 import LoginPage from "./LoginPage";
 
+import AnalystDashboard from "./AnalystDashboard";
+
+import StakeholderDashboard from "./StakeholderDashboard";
 import {
 
   ChartNoAxesCombined,
@@ -2357,193 +2360,538 @@ function PlaceholderPage({ title, onBack }) {
 
 
 
-function PendingRoleDashboard({ role, onLogout }) {
+function ProfilePage({ user, onBack, onSavePhoto }) {
+  const displayName = user?.displayName || "Staff";
 
-  const isAnalyst = role === "analyst";
+  const role = user?.role
+    ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
+    : "Staff";
 
-  const title = isAnalyst
+  const [photoPreview, setPhotoPreview] = useState(
+    user?.photoURL || ""
+  );
 
-    ? "Analyst Workspace"
+  const [isPhotoMenuOpen, setIsPhotoMenuOpen] = useState(false);
+  const [message, setMessage] = useState("");
 
-    : "Stakeholder Workspace";
+  const photoMenuRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-  const features = isAnalyst
+  // Close floating menu when clicking outside or pressing Escape
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!photoMenuRef.current?.contains(event.target)) {
+        setIsPhotoMenuOpen(false);
+      }
+    };
 
-    ? [
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsPhotoMenuOpen(false);
+      }
+    };
 
-        "PCA and TOPSIS analysis",
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
 
-        "EPI results and energy predictions",
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
 
-        "Simulation and scenario analysis",
+  // Upload and save profile picture
+  const handlePhotoChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
 
-        "OCR extraction review and correction",
+    if (!file) return;
 
-      ]
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setMessage("Please select a JPG, PNG or WEBP image.");
+      return;
+    }
 
-    : [
+    if (file.size > 2 * 1024 * 1024) {
+      setMessage("Image size must not exceed 2 MB.");
+      return;
+    }
 
-        "Facility performance statistics",
+    const reader = new FileReader();
 
-        "Energy consumption monitoring",
+    reader.onload = () => {
+      const imageData = reader.result;
+      const saved = onSavePhoto(imageData);
 
-        "Electricity cost monitoring",
+      if (saved === false) {
+        setMessage("Unable to save photo. Please try again.");
+        return;
+      }
 
-        "Monthly charts and reports",
+      setPhotoPreview(imageData);
+      setMessage("Profile picture updated successfully.");
+      setIsPhotoMenuOpen(false);
+    };
 
-        "EPI performance monitoring",
+    reader.onerror = () => {
+      setMessage("Unable to read this image.");
+    };
 
-      ];
+    reader.readAsDataURL(file);
+  };
+
+  // Remove profile picture
+  const handleRemovePhoto = () => {
+    const saved = onSavePhoto("");
+
+    if (saved === false) {
+      setMessage("Unable to remove photo. Please try again.");
+      return;
+    }
+
+    setPhotoPreview("");
+    setMessage("Profile picture removed.");
+    setIsPhotoMenuOpen(false);
+  };
 
   return (
+    <section className="profile-page">
 
-    <main
+      <div className="profile-page-top">
+        <button
+          type="button"
+          className="back-home-button"
+          onClick={onBack}
+        >
+          <ArrowLeft size={17} />
+          Back to Dashboard
+        </button>
+      </div>
 
-      style={{
+      {/* PROFILE HEADER */}
 
-        minHeight: "100vh",
+      <div className="profile-page-heading">
 
-        padding: "45px",
+        <div className="profile-avatar-edit-wrap" ref={photoMenuRef}>
 
-        background: "#f4f7fb",
+          <div className="profile-large-avatar">
+            {photoPreview ? (
+              <img src={photoPreview} alt="Profile" />
+            ) : (
+              <UserRound size={38} />
+            )}
+          </div>
 
-        color: "#183451",
+          <button
+            type="button"
+            className="profile-edit-photo"
+            aria-haspopup="menu"
+            aria-expanded={isPhotoMenuOpen}
+            onClick={() => setIsPhotoMenuOpen((open) => !open)}
+          >
+            Edit photo
+          </button>
 
-      }}
+          {/* FLOATING PHOTO MENU */}
 
-    >
+          {isPhotoMenuOpen && (
+            <div className="profile-photo-popover" role="menu">
 
-      <header
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FileUp size={17} />
+                <span>Upload Photo</span>
+              </button>
 
-        style={{
+              <button
+                type="button"
+                role="menuitem"
+                className="remove-photo-option"
+                disabled={!photoPreview}
+                onClick={handleRemovePhoto}
+              >
+                <X size={17} />
+                <span>Remove Photo</span>
+              </button>
 
-          display: "flex",
+            </div>
+          )}
 
-          justifyContent: "space-between",
-
-          alignItems: "center",
-
-          flexWrap: "wrap",
-
-          gap: "15px",
-
-        }}
-
-      >
-
-        <div>
-
-          <h1 style={{ margin: 0 }}>EnergyLens</h1>
-
-          <p>{title}</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handlePhotoChange}
+            hidden
+          />
 
         </div>
 
+        <div className="profile-heading-info">
+          <span>ACCOUNT PROFILE</span>
+          <h1>{displayName}</h1>
+          <p>{user?.email || "Not available"}</p>
+        </div>
+
+      </div>
+
+      {message && (
+        <p className="profile-photo-message" role="status">
+          {message}
+        </p>
+      )}
+
+      {/* PERSONAL INFORMATION */}
+
+      <div className="profile-details-card">
+
+        <div className="profile-card-heading">
+          <h2>Personal Information</h2>
+          <span>Read Only</span>
+        </div>
+
+        
+        <div className="profile-details-grid">
+
+          <div className="profile-detail-item">
+            <label>Full Name</label>
+            <strong>{displayName}</strong>
+          </div>
+
+          <div className="profile-detail-item">
+            <label>Email Address</label>
+            <strong>{user?.email || "Not available"}</strong>
+          </div>
+
+        </div>
+
+
+      </div>
+
+      {/* ACCOUNT INFORMATION */}
+
+      <div className="profile-details-card">
+
+        <div className="profile-card-heading">
+          <h2>Account Information</h2>
+          <span>Account Details</span>
+        </div>
+
+        <div className="profile-details-grid">
+
+          <div className="profile-detail-item">
+            <label>Account ID</label>
+            <strong>{user?.uid || "Not available"}</strong>
+          </div>
+
+          <div className="profile-detail-item">
+            <label>Workspace</label>
+            <strong>EnergyLens</strong>
+          </div>
+
+          <div className="profile-detail-item">
+            <label>Account Role</label>
+            <strong>{role}</strong>
+          </div>
+
+          <div className="profile-detail-item">
+            <label>Account Status</label>
+            <strong className={user?.active ? "status-active" : "status-inactive"}>
+              {user?.active ? "Active" : "Inactive"}
+            </strong>
+          </div>
+
+        </div>
+
+      </div>
+
+
+    </section>
+  );
+}
+
+function DocumentExtractionPage({ selectedFile, onBack, onSave }) {
+  const [formType, setFormType] = useState("Energy Data Entry");
+  const [formValues, setFormValues] = useState({});
+  const [isExtracted, setIsExtracted] = useState(false);
+  const [showExtractedText, setShowExtractedText] = useState(false);
+  const [extractedText, setExtractedText] = useState("");
+
+  const config = entryPages[formType];
+  const Icon = config.icon;
+
+  const handleExtractAndFill = () => {
+    const emptyValues = {};
+
+    config.sections.forEach((section) => {
+      section.fields.forEach((field) => {
+        emptyValues[field.name] = "";
+      });
+    });
+
+    // Temporary demonstration values.
+    // Replace these with actual OCR API results later.
+    const demoValues = {
+      "Energy Data Entry": {
+        energy_source: "Electricity",
+        meter_type: "Main Meter",
+        consumption: "12500",
+        consumption_unit: "kWh",
+        demand: "85",
+        demand_unit: "kW",
+      },
+
+      "Cost Data Entry": {
+        cost_category: "Electricity",
+        currency: "MYR (RM)",
+        amount: "6250.00",
+        total_amount: "6250.00",
+      },
+    };
+
+    setFormValues({
+      ...emptyValues,
+      ...(demoValues[formType] || {}),
+    });
+
+    setExtractedText(
+      `DEMO MODE — OCR NOT CONNECTED
+
+Uploaded document: ${selectedFile?.name || "Unknown"}
+
+The actual Malay text from your electricity bill has not been extracted yet.
+
+The OCR and Malay-to-English translation service will be integrated later.
+
+The values currently displayed in the form are demonstration values, not verified information from your uploaded bill.`
+    );
+
+    setIsExtracted(true);
+    setShowExtractedText(false);
+  };
+
+  const handleFieldChange = (name, value) => {
+    setFormValues((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const handleSave = (event) => {
+    event.preventDefault();
+    onSave(config.title, formValues);
+  };
+
+  return (
+    <section className="document-extraction-page">
+
+      <div className="document-extraction-toolbar">
         <button
-
           type="button"
-
-          onClick={onLogout}
-
-          style={{
-
-            padding: "11px 20px",
-
-            border: "1px solid #d5deea",
-
-            borderRadius: "8px",
-
-            background: "white",
-
-            cursor: "pointer",
-
-          }}
-
+          className="back-home-button"
+          onClick={onBack}
         >
-
-          <LogOut size={16} style={{ verticalAlign: "middle" }} />
-
-          {" "}Logout
-
+          <ArrowLeft size={17} />
+          Back to Dashboard
         </button>
 
-      </header>
+        <span>DOCUMENT PROCESSING WORKSPACE</span>
+      </div>
 
-      <section
+      <div className="document-extraction-heading">
+        <div className="document-extraction-icon">
+          <ScanLine size={27} />
+        </div>
 
-        style={{
+        <div>
+          <span>SMART DOCUMENT IMPORT</span>
+          <h1>Document Extraction</h1>
+          <p>
+            Extract information from Malaysian utility bills
+            and transfer it into the appropriate data entry form.
+          </p>
+        </div>
+      </div>
 
-          maxWidth: "750px",
+      <div className="document-source-strip">
+        <FileText size={22} />
 
-          margin: "65px auto",
+        <div>
+          <strong>{selectedFile?.name}</strong>
+          <span>Uploaded document</span>
+        </div>
 
-          padding: "35px",
-
-          background: "white",
-
-          borderRadius: "15px",
-
-          boxShadow: "0 5px 25px rgba(20,45,75,0.06)",
-
-        }}
-
-      >
-
-        <span
-
-          style={{
-
-            color: "#3475b6",
-
-            fontWeight: 700,
-
-            fontSize: "12px",
-
-          }}
-
-        >
-
-          {role.toUpperCase()} DASHBOARD
-
+        <span className="document-source-status">
+          Ready for processing
         </span>
+      </div>
 
-        <h2>{title}</h2>
+      <div className="document-extraction-workspace">
 
-        <p style={{ color: "#718096" }}>
+        <div className="document-extraction-controls">
 
-          Your account has been recognised successfully.
+          <div>
+            <span className="extraction-step">STEP 01</span>
+            <h2>Select Data Entry Form</h2>
+            <p>
+              Choose the destination form for the extracted information.
+            </p>
+          </div>
 
-          This dashboard is currently under development.
+          <div className="extraction-form-selector">
+            <label htmlFor="extraction-form-type">
+              Form Type
+            </label>
 
-        </p>
+            <select
+              id="extraction-form-type"
+              value={formType}
+              onChange={(event) => {
+                setFormType(event.target.value);
+                setIsExtracted(false);
+                setFormValues({});
+                setShowExtractedText(false);
+              }}
+            >
+              {Object.keys(entryPages).map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <h3>Planned functions</h3>
+          <button
+            type="button"
+            className="extraction-start-button"
+            onClick={handleExtractAndFill}
+          >
+            <ScanLine size={18} />
+            Extract & Fill Form
+          </button>
 
-        <ul style={{ lineHeight: 2.2, paddingLeft: "22px" }}>
+        </div>
 
-          {features.map((feature) => (
+        {isExtracted ? (
 
-            <li key={feature}>{feature}</li>
+          <form
+            className="document-extraction-form"
+            onSubmit={handleSave}
+          >
 
-          ))}
+            <div className="extraction-results-heading">
+              <div className="document-extraction-icon">
+                <Icon size={23} />
+              </div>
 
-        </ul>
+              <div>
+                <span className="extraction-step">STEP 02</span>
+                <h2>{config.title}</h2>
+                <p>
+                  Review and edit the information before saving.
+                </p>
+              </div>
 
-        <p style={{ color: "#8a96a8", fontSize: "13px" }}>
+              <span className="extraction-demo-status">
+                Demonstration Data
+              </span>
+            </div>
 
-          These features will be implemented in the next
+            {config.sections.map((section, index) => (
 
-          development stage.
+              <section
+                className="entry-section extraction-entry-section"
+                key={section.title}
+              >
 
-        </p>
+                <div className="entry-section-heading">
+                  <span className="section-number">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
 
-      </section>
+                  <h2>{section.title}</h2>
+                </div>
 
-    </main>
+                <div className="entry-fields-grid">
 
+                  {section.fields.map((field) => (
+                    <EntryField
+                      key={field.name}
+                      field={field}
+                      value={formValues[field.name] ?? ""}
+                      onChange={handleFieldChange}
+                    />
+                  ))}
+
+                </div>
+
+              </section>
+
+            ))}
+
+            <div className="document-extraction-footer">
+
+              <button
+                type="button"
+                className="view-extracted-text-button"
+                onClick={() =>
+                  setShowExtractedText((current) => !current)
+                }
+                aria-expanded={showExtractedText}
+              >
+                <FileText size={17} />
+                {showExtractedText
+                  ? "Hide Extracted Text"
+                  : "View Extracted Text"}
+              </button>
+
+              <button
+                type="submit"
+                className="entry-save-button"
+              >
+                <Save size={17} />
+                Save Entry
+              </button>
+
+            </div>
+
+            {showExtractedText && (
+              <div className="extracted-text-panel">
+                <div className="extracted-text-heading">
+                  <strong>Extracted Document Text</strong>
+                  <span>English translation / OCR output</span>
+                </div>
+
+                <pre>{extractedText}</pre>
+              </div>
+            )}
+
+          </form>
+
+        ) : (
+
+          <div className="extraction-empty-state">
+            <ScanLine size={35} />
+
+            <strong>Ready to extract your document</strong>
+
+            <p>
+              Select the appropriate form type above and click
+              Extract & Fill Form to continue.
+            </p>
+          </div>
+
+        )}
+
+      </div>
+
+    </section>
   );
-
 }
+
 
 // ========================================
 
@@ -2553,11 +2901,9 @@ function PendingRoleDashboard({ role, onLogout }) {
 
 function App() {
 
+
 const handleLogin = async ({ email, password }) => {
-  const { authUser, profile } = await loginUser(
-    email,
-    password
-  );
+  const { authUser, profile } = await loginUser(email, password);
 
   setCurrentUser({
     uid: authUser.uid,
@@ -2568,6 +2914,29 @@ const handleLogin = async ({ email, password }) => {
   setActivePage("Home");
   setActiveNav("Home");
   setNotice("");
+};
+
+const handleSaveProfilePhoto = (photoURL) => {
+  if (!currentUser?.uid) return false;
+
+  try {
+    const storageKey = `energylens_profile_photo_${currentUser.uid}`;
+
+    if (photoURL) {
+      localStorage.setItem(storageKey, photoURL);
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+
+    setCurrentUser((current) =>
+      current ? { ...current, photoURL: photoURL || "" } : current
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Unable to save profile photo:", error);
+    return false;
+  }
 };
 
 const handleLogout = async () => {
@@ -2592,6 +2961,7 @@ const handleLogout = async () => {
 
   const [activePage, setActivePage] = useState("Home");
   const [activeNav, setActiveNav] = useState("Home");
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState(null);
 
@@ -2629,10 +2999,19 @@ useEffect(() => {
       }
 
       if (isMounted) {
+        let savedPhoto = "";
+        try {
+          savedPhoto =
+            localStorage.getItem(`energylens_profile_photo_${authUser.uid}`) || "";
+        } catch (storageError) {
+          console.error("Unable to load profile photo:", storageError);
+        }
+
         setCurrentUser({
           uid: authUser.uid,
           email: authUser.email,
           ...profile,
+          photoURL: profile.photoURL || savedPhoto,
         });
 
         setIsAuthLoading(false);
@@ -2763,12 +3142,11 @@ useEffect(() => {
     }
 
     setSelectedFile(file);
-
     setNotice("");
 
   };
-
   const handleFileChange = (event) => {
+
 
     const file = event.target.files?.[0];
 
@@ -2889,22 +3267,15 @@ useEffect(() => {
   // ========================================
 
   const handleExtract = () => {
-
     if (!selectedFile) {
-
       setNotice("Please upload a document before extracting.");
-
       return;
-
     }
-
-    setNotice(
-
-      `${selectedFile.name} is ready. OCR integration will be connected later.`
-
-    );
-
+    setNotice("");
+    setActiveNav("Home");
+    setActivePage("Document Extraction");
   };
+
 
   // ========================================
 
@@ -3019,41 +3390,31 @@ if (currentUser.role === "manager") {
 
 }
 
+
 // ANALYST DASHBOARD
 
 if (currentUser.role === "analyst") {
-
   return (
-
-    <PendingRoleDashboard
-
-      role="analyst"
-
+    <AnalystDashboard
+      user={currentUser}
       onLogout={handleLogout}
-
     />
-
   );
-
 }
+
+
 
 // STAKEHOLDER DASHBOARD
 
 if (currentUser.role === "stakeholder") {
-
   return (
-
-    <PendingRoleDashboard
-
-      role="stakeholder"
-
+    <StakeholderDashboard
+      user={currentUser}
       onLogout={handleLogout}
-
     />
-
   );
-
 }
+
 
 // STAFF DASHBOARD CONTINUES BELOW
 
@@ -3080,9 +3441,7 @@ if (currentUser.role === "stakeholder") {
           <div className="welcome-section">
 
             <h1>
-
-  Welcome, {currentUser?.email.split("@")[0]}!
-
+  Welcome, {currentUser?.displayName || "Staff"}!
 </h1>
 
             <p>Your workspace is ready.</p>
@@ -3109,27 +3468,67 @@ if (currentUser.role === "stakeholder") {
 
             </button>
 
-            <button
+            <div className="profile-menu-wrap">
 
-              type="button"
+              <button
+                type="button"
+                className="profile-button"
+                aria-haspopup="menu"
+                aria-expanded={isProfileMenuOpen}
+                onClick={() => setIsProfileMenuOpen((open) => !open)}
+              >
+                <span className="profile-avatar">
+                  {currentUser?.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt="Profile"
+                    />
+                  ) : (
+                    <UserRound size={19} />
+                  )}
+                </span>
 
-              className="profile-button"
+                <span>{currentUser?.displayName || "Staff"}</span>
 
-              onClick={() => setNotice("Staff profile selected.")}
+                <ChevronDown
+                  size={16}
+                  className={isProfileMenuOpen ? "chevron-rotated" : ""}
+                />
+              </button>
 
-            >
+              {isProfileMenuOpen && (
+                <div className="profile-dropdown" role="menu">
 
-              <span className="profile-avatar">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setActivePage("My Profile");
+                      setActiveNav("Home");
+                      setNotice("");
+                      setIsProfileMenuOpen(false);
+                    }}
+                  >
+                    <UserRound size={17} />
+                    My Profile
+                  </button>
 
-                <UserRound size={19} />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      handleLogout();
+                    }}
+                  >
+                    <LogOut size={17} />
+                    Logout
+                  </button>
 
-              </span>
+                </div>
+              )}
 
-              <span>Staff</span>
-
-              <ChevronDown size={16} />
-
-            </button>
+            </div>
 
           </div>
 
@@ -3362,6 +3761,22 @@ if (currentUser.role === "stakeholder") {
             </article>
 
           </section>
+
+        ) : activePage === "Document Extraction" ? (
+
+          <DocumentExtractionPage
+            selectedFile={selectedFile}
+            onBack={handleBackHome}
+            onSave={handleSaveEntry}
+          />
+
+        ) : activePage === "My Profile" ? (
+
+          <ProfilePage
+            user={currentUser}
+            onBack={handleBackHome}
+            onSavePhoto={handleSaveProfilePhoto}
+          />
 
         ) : currentEntryConfig ? (
 
