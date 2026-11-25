@@ -7,6 +7,7 @@ import {
   query,
   where,
   orderBy,
+  updateDoc,
 } from "firebase/firestore";
 
 import { db } from "../firebase/firestore";
@@ -62,4 +63,69 @@ export async function getActiveUsers() {
     uid: item.id,
     ...item.data(),
   }));
+}
+
+
+// ========================================
+// GET ALL USERS (MANAGER ONLY)
+// ========================================
+
+export async function getAllUsers() {
+  const usersRef = collection(db, COLLECTIONS.USERS);
+  const snapshot = await getDocs(usersRef);
+
+  return snapshot.docs.map((item) => ({
+    uid: item.id,
+    ...item.data(),
+  }));
+}
+
+// ========================================
+// UPDATE USER ACCOUNT
+// ========================================
+
+export async function updateUserAccount(uid, changes) {
+  if (!uid) {
+    throw new Error("User UID is required.");
+  }
+
+  const allowedRoles = [
+    "manager",
+    "analyst",
+    "staff",
+    "stakeholder",
+  ];
+
+  const updates = {};
+
+  if (changes.role !== undefined) {
+    const role = changes.role.toLowerCase();
+
+    if (!allowedRoles.includes(role)) {
+      throw new Error("Invalid user role.");
+    }
+
+    updates.role = role;
+  }
+
+  if (changes.active !== undefined) {
+    if (typeof changes.active !== "boolean") {
+      throw new Error("Active status must be a boolean.");
+    }
+
+    updates.active = changes.active;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new Error("No valid changes provided.");
+  }
+
+  const userRef = doc(db, COLLECTIONS.USERS, uid);
+
+  await updateDoc(userRef, updates);
+
+  return {
+    uid,
+    ...updates,
+  };
 }

@@ -1,4 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  createManagedUser,
+  setManagedUserStatus,
+} from "./services/managerUserService";
+import {
+  getAllFacilities,
+  createFacility,
+  updateFacility,
+  archiveFacility,
+} from "./services/facilityService";
+import {
+  collection,
+  doc,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "./firebase/firestore";
 import {
   Activity,
   ArrowUpRight,
@@ -6,7 +23,6 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
-  ClipboardList,
   Database,
   FileClock,
   Pencil,
@@ -22,11 +38,17 @@ import {
   SlidersHorizontal,
   Users,
   X,
-  Zap,
 } from "lucide-react";
 import "./ManagerDashboard.css";
 
 const EMPTY_RECORDS = {};
+
+const EMPTY_FACILITY = {
+  facilityName: "",
+  facilitySize: "",
+  facilityType: "Commercial",
+  location: "",
+};
 
 const RECORD_CATEGORIES = [
   { key: "Energy Data Entry", label: "Energy Records" },
@@ -44,19 +66,6 @@ const NAV_ITEMS = [
   { label: "All Records", icon: Database },
   { label: "OCR Management", icon: FileText },
   { label: "System Configuration", icon: Settings },
-];
-
-const INITIAL_USERS = [
-  { id: 1, name: "System Administrator", email: "manager@energylens.demo", role: "Manager", status: "Active" },
-  { id: 2, name: "Energy Analyst", email: "analyst@energylens.demo", role: "Analyst", status: "Active" },
-  { id: 3, name: "Facility Staff", email: "staff@energylens.demo", role: "Staff", status: "Active" },
-  { id: 4, name: "Report Viewer", email: "stakeholder@energylens.demo", role: "Stakeholder", status: "Inactive" },
-];
-
-const INITIAL_FACILITIES = [
-  { id: 1, name: "Main Administration Building", code: "FAC-001", location: "Kedah", type: "Office", status: "Active" },
-  { id: 2, name: "Engineering Block", code: "FAC-002", location: "Kedah", type: "Academic", status: "Active" },
-  { id: 3, name: "Research Laboratory", code: "FAC-003", location: "Kedah", type: "Laboratory", status: "Active" },
 ];
 
 const ROLE_DETAILS = [
@@ -136,10 +145,21 @@ function Modal({ title, onClose, children, className = "" }) {
   );
 }
 
-export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateRecord, onDeleteRecord, onLogout = () => {} }) {
+export default function ManagerDashboard({
+  currentUser,
+  records = EMPTY_RECORDS,
+  onUpdateRecord,
+  onDeleteRecord,
+  onLogout = () => {}
+}) {
   const [activePage, setActivePage] = useState("Overview");
-  const [users, setUsers] = useState(INITIAL_USERS);
-  const [facilities, setFacilities] = useState(INITIAL_FACILITIES);
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState("");
+  const [facilities, setFacilities] = useState([]);
+  const [facilitiesLoading, setFacilitiesLoading] = useState(true);
+  const [facilitiesError, setFacilitiesError] = useState("");
+  const [facilitySaving, setFacilitySaving] = useState(false);
   const [managedRecords, setManagedRecords] = useState(records || EMPTY_RECORDS);
   const [searchTerm, setSearchTerm] = useState("");
   const [recordCategory, setRecordCategory] = useState("All");
@@ -149,7 +169,65 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
   const [modal, setModal] = useState("");
   const [notice, setNotice] = useState("");
   const [newUser, setNewUser] = useState({ name: "", email: "", role: "Staff" });
-  const [newFacility, setNewFacility] = useState({ name: "", code: "", location: "", type: "Office" });
+  const [newFacility, setNewFacility] = useState(EMPTY_FACILITY);
+  const [editingFacility, setEditingFacility] = useState(null);
+  const [userSaving, setUserSaving] = useState(false);
+
+  // Load all user profiles from Firestore, including inactive accounts.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUsers = async () => {
+      try {
+        const snapshot = await getDocs(
+          collection(db, "users")
+        );
+
+        const loadedUsers = snapshot.docs.map((userDoc) => {
+          const data = userDoc.data();
+
+          return {
+            id: userDoc.id,
+            name:
+              data.displayName ||
+              data.name ||
+              data.fullName ||
+              data.email ||
+              "Unnamed user",
+            email: data.email || "",
+            role: String(data.role || "staff").toLowerCase(),
+            status: data.active === true ? "Active" : "Inactive",
+          };
+        });
+
+        if (!cancelled) {
+          setUsers(loadedUsers);
+          setUsersError("");
+        }
+      } catch (error) {
+        console.error(
+          "Unable to load users from Firestore:",
+          error
+        );
+
+        if (!cancelled) {
+          setUsersError(
+            error.message || "Unable to load user accounts."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setUsersLoading(false);
+        }
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
 
   const allRecords = useMemo(
@@ -162,9 +240,18 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
   const filteredUsers = users.filter((user) =>
     `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const filteredFacilities = facilities.filter((facility) =>
-    `${facility.name} ${facility.code} ${facility.location}`.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  
+const filteredFacilities = facilities.filter((facility) =>
+  [
+    facility.facilityName,
+    facility.facilityType,
+    facility.location,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(searchTerm.toLowerCase())
+);
+
   const filteredRecords = allRecords.filter((record) => {
     const matchesCategory = recordCategory === "All" || record.category === recordCategory;
     const matchesSearch = Object.values(record).some((value) =>
@@ -178,41 +265,293 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
     window.setTimeout(() => setNotice(""), 3200);
   };
 
-  const addUser = (event) => {
-    event.preventDefault();
-    if (!newUser.name.trim() || !newUser.email.trim()) return;
-    setUsers((current) => [...current, { ...newUser, id: Date.now(), status: "Active" }]);
-    setNewUser({ name: "", email: "", role: "Staff" });
+  
+const addUser = async (event) => {
+  event.preventDefault();
+
+  if (currentUser?.role !== "manager") {
+    showNotice("Only Managers can create user accounts.");
+    return;
+  }
+
+  if (!newUser.name.trim() || !newUser.email.trim()) {
+    showNotice("Please complete all user information.");
+    return;
+  }
+
+  try {
+    setUserSaving(true);
+
+    const result = await createManagedUser({
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role,
+    });
+
+    const newProfile = {
+      id: result.uid,
+      name: result.displayName,
+      email: result.email,
+      role: result.role,
+      status: "Active",
+    };
+
+    setUsers((current) => [
+      ...current.filter((user) => user.id !== result.uid),
+      newProfile,
+    ]);
+
+    setNewUser({
+      name: "",
+      email: "",
+      role: "Staff",
+    });
+
     setModal("");
-    showNotice("Demo user added. Firebase account creation is not connected yet.");
-  };
 
-  const addFacility = (event) => {
-    event.preventDefault();
-    if (!newFacility.name.trim() || !newFacility.code.trim()) return;
-    setFacilities((current) => [...current, { ...newFacility, id: Date.now(), status: "Active" }]);
-    setNewFacility({ name: "", code: "", location: "", type: "Office" });
+    if (result.emailSent) {
+      showNotice(
+        "User account created successfully. Password-reset email sent."
+      );
+    } else {
+      showNotice(
+        "Account created, but the password-reset email failed. You can resend it."
+      );
+    }
+  } catch (error) {
+    console.error("Unable to create user:", error);
+
+    showNotice(
+      error.message || "Unable to create user account."
+    );
+  } finally {
+    setUserSaving(false);
+  }
+};
+
+
+const addFacility = async (event) => {
+  event.preventDefault();
+
+  if (currentUser?.role !== "manager") {
+    showNotice("Only Managers can create facilities.");
+    return;
+  }
+
+  try {
+    setFacilitySaving(true);
+
+    const facilityData = {
+      facilityName: newFacility.facilityName.trim(),
+      facilitySize: Number(newFacility.facilitySize),
+      facilityType: newFacility.facilityType,
+      location: newFacility.location.trim(),
+    };
+
+    if (!facilityData.facilityName || !facilityData.location) {
+      throw new Error("Please complete all facility fields.");
+    }
+
+    const facilityId = await createFacility(
+      facilityData,
+      currentUser
+    );
+
+    setFacilities((current) => [
+      ...current,
+      {
+        ...facilityData,
+        facilityId,
+        active: true,
+      },
+    ].sort((a, b) =>
+      a.facilityName.localeCompare(b.facilityName)
+    ));
+
+    setNewFacility(EMPTY_FACILITY);
     setModal("");
-    showNotice("Demo facility added. It has not been saved to Firebase.");
-  };
+    showNotice("Facility successfully saved to Firestore.");
+  } catch (error) {
+    console.error("Unable to create facility:", error);
+    showNotice(error.message || "Unable to create facility.");
+  } finally {
+    setFacilitySaving(false);
+  }
+};
 
-  const toggleUserStatus = (id) => {
-    setUsers((current) => current.map((user) =>
-      user.id === id ? { ...user, status: user.status === "Active" ? "Inactive" : "Active" } : user
-    ));
-    showNotice("Demo user status updated locally.");
-  };
+const saveFacilityEdit = async (event) => {
+  event.preventDefault();
 
-  const updateUserRole = (id, role) => {
-    setUsers((current) => current.map((user) => user.id === id ? { ...user, role } : user));
-    showNotice("Demo role updated locally.");
-  };
+  if (!editingFacility) return;
 
-  const toggleFacilityStatus = (id) => {
-    setFacilities((current) => current.map((facility) =>
-      facility.id === id ? { ...facility, status: facility.status === "Active" ? "Inactive" : "Active" } : facility
-    ));
-    showNotice("Demo facility status updated locally.");
+  try {
+    setFacilitySaving(true);
+
+    const facilityData = {
+      facilityName: newFacility.facilityName.trim(),
+      facilitySize: Number(newFacility.facilitySize),
+      facilityType: newFacility.facilityType,
+      location: newFacility.location.trim(),
+    };
+
+    await updateFacility(
+      editingFacility.facilityId,
+      facilityData,
+      currentUser
+    );
+
+    setFacilities((current) =>
+      current.map((facility) =>
+        facility.facilityId === editingFacility.facilityId
+          ? { ...facility, ...facilityData }
+          : facility
+      ).sort((a, b) =>
+        a.facilityName.localeCompare(b.facilityName)
+      )
+    );
+
+    setEditingFacility(null);
+    setNewFacility(EMPTY_FACILITY);
+    setModal("");
+    showNotice("Facility successfully updated.");
+  } catch (error) {
+    console.error("Unable to update facility:", error);
+    showNotice(error.message || "Unable to update facility.");
+  } finally {
+    setFacilitySaving(false);
+  }
+};
+
+
+// ARCHIVE FACILITY IN FIRESTORE
+const handleArchiveFacility = async (facility) => {
+  if (currentUser?.role !== "manager") {
+    showNotice("Only Managers can archive facilities.");
+    return;
+  }
+
+  if (!facility?.facilityId) {
+    showNotice("Invalid facility ID.");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Are you sure you want to archive "${facility.facilityName}"?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    setFacilitySaving(true);
+
+    await archiveFacility(
+      facility.facilityId,
+      currentUser
+    );
+
+    // Remove archived facility from active facility list.
+    setFacilities((current) =>
+      current.filter(
+        (item) => item.facilityId !== facility.facilityId
+      )
+    );
+
+    showNotice(
+      `${facility.facilityName} archived successfully.`
+    );
+
+  } catch (error) {
+    console.error("Unable to archive facility:", error);
+
+    showNotice(
+      error.message || "Unable to archive facility."
+    );
+
+  } finally {
+    setFacilitySaving(false);
+  }
+};
+
+
+
+const toggleUserStatus = async (id) => {
+  const user = users.find((item) => item.id === id);
+
+  if (!user) return;
+
+  if (String(id).startsWith("demo-")) {
+    showNotice("Demo users cannot be managed as real accounts.");
+    return;
+  }
+
+  const nextActive = user.status !== "Active";
+
+  try {
+    setUserSaving(true);
+
+    await setManagedUserStatus(id, nextActive);
+
+    setUsers((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: nextActive ? "Active" : "Inactive",
+            }
+          : item
+      )
+    );
+
+    showNotice(
+      nextActive
+        ? "User activated successfully."
+        : "User deactivated successfully."
+    );
+
+  } catch (error) {
+    console.error("Unable to update user status:", error);
+
+    showNotice(
+      error.message || "Unable to update user status."
+    );
+  } finally {
+    setUserSaving(false);
+  }
+};
+
+
+const openFacilityEditor = (facility) => {
+  setEditingFacility(facility);
+
+  setNewFacility({
+    facilityName: facility.facilityName || "",
+    facilitySize: String(facility.facilitySize ?? ""),
+    facilityType: facility.facilityType || "Commercial",
+    location: facility.location || "",
+  });
+
+  setModal("facility");
+};
+
+  const updateUserRole = async (id, role) => {
+    if (String(id).startsWith("demo-")) {
+      setUsers((current) => current.map((user) =>
+        user.id === id ? { ...user, role: role.toLowerCase() } : user
+      ));
+      showNotice("Preview user role updated locally; no Firebase profile was changed.");
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "users", id), { role: role.toLowerCase() });
+      setUsers((current) => current.map((user) =>
+        user.id === id ? { ...user, role: role.toLowerCase() } : user
+      ));
+      showNotice("User role updated successfully.");
+    } catch (error) {
+      console.error("Unable to update user role:", error);
+      showNotice(error.message || "Unable to update user role.");
+    }
   };
 
   const openRecordEditor = (record) => {
@@ -281,8 +620,8 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
         description="Monitor EnergyLens activity and manage the system from one place."
       />
       <div className="manager-stats-grid">
-        <StatCard icon={Users} label="Total Users" value={users.length} note="Demo accounts" tone="blue" />
-        <StatCard icon={Building2} label="Facilities" value={facilities.length} note="Demo facilities" tone="green" />
+        <StatCard icon={Users} label="Total Users" value={users.length} note="Firebase profiles" tone="blue" />
+        <StatCard icon={Building2} label="Facilities" value={facilities.length} note="Firestore facilities" tone="green" />
         <StatCard icon={Database} label="Data Records" value={allRecords.length} note="Current session" tone="purple" />
         <StatCard icon={FileClock} label="Pending OCR Reviews" value="0" note="Not connected" tone="orange" />
       </div>
@@ -298,7 +637,7 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
           </div>
           <div className="manager-module-grid">
             {[
-              { title: "User Management", description: "Create accounts and manage access.", icon: Users },
+              { title: "User Management", description: "Create user accounts, assign roles and manage access.", icon: Users },
               { title: "Roles & Permissions", description: "Review access levels for each role.", icon: ShieldCheck },
               { title: "Facility Management", description: "Maintain facility information.", icon: Building2 },
               { title: "All Records", description: "Review submitted facility data.", icon: Database },
@@ -328,13 +667,13 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
           <div className="manager-status-list">
             <div><span className="manager-status-dot ready" /><span>Staff workspace</span><strong>Available</strong></div>
             <div><span className="manager-status-dot ready" /><span>Data entry forms</span><strong>Available</strong></div>
-            <div><span className="manager-status-dot pending" /><span>Firebase database</span><strong>Not connected</strong></div>
-            <div><span className="manager-status-dot pending" /><span>Authentication</span><strong>Not connected</strong></div>
+            <div><span className="manager-status-dot pending" /><span>Firebase database</span><strong>Connected in this workspace</strong></div>
+            <div><span className="manager-status-dot pending" /><span>Authentication</span><strong>Connected</strong></div>
             <div><span className="manager-status-dot pending" /><span>OCR processing</span><strong>Not connected</strong></div>
           </div>
           <div className="manager-demo-note">
             <CheckCircle2 size={17} />
-            <span>This is a frontend preview. User and facility changes are stored only in React state.</span>
+            <span>User profiles and facility information are loaded from Firebase Firestore.</span>
           </div>
         </section>
       </div>
@@ -351,9 +690,11 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
       />
       <section className="manager-card">
         <div className="manager-table-toolbar">
-          <div><h2>System Users</h2><p>{users.length} user accounts in this preview</p></div>
+          <div><h2>System Users</h2><p>{users.length} registered user profiles</p></div>
           <label className="manager-search"><Search size={17} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search users..." /></label>
         </div>
+        {usersLoading && <p className="manager-footnote">Loading user accounts from Firebase...</p>}
+        {usersError && <p className="manager-footnote" role="alert">{usersError}</p>}
         <div className="manager-table-wrap">
           <table className="manager-table">
             <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
@@ -362,7 +703,7 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
                 <tr key={user.id}>
                   <td><strong>{user.name}</strong></td>
                   <td>{user.email}</td>
-                  <td><select className="manager-role-select" value={user.role} onChange={(event) => updateUserRole(user.id, event.target.value)}><option>Manager</option><option>Analyst</option><option>Staff</option><option>Stakeholder</option></select></td>
+                  <td><select className="manager-role-select" value={user.role} onChange={(event) => updateUserRole(user.id, event.target.value)}><option value="manager">Manager</option><option value="analyst">Analyst</option><option value="staff">Staff</option><option value="stakeholder">Stakeholder</option></select></td>
                   <td><span className={`manager-status-pill ${user.status === "Active" ? "active" : "inactive"}`}>{user.status}</span></td>
                   <td><button type="button" className="manager-text-button" onClick={() => toggleUserStatus(user.id)}>{user.status === "Active" ? "Deactivate" : "Activate"}</button></td>
                 </tr>
@@ -372,7 +713,7 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
           {filteredUsers.length === 0 && <EmptyState icon={Users} title="No users found" description="Try another search term." />}
         </div>
       </section>
-      <p className="manager-footnote">Demo only: adding a row here does not create a Firebase Authentication account. We will connect account creation and role storage after the Firebase project is ready.</p>
+      <p className="manager-footnote">User profiles and role/status changes are read from and saved to Firestore. Creating Firebase Authentication accounts is a separate secure workflow and is not performed by this form.</p>
     </>
   );
 
@@ -391,36 +732,148 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
     </>
   );
 
-  const renderFacilities = () => (
-    <>
-      <PageHeading
-        eyebrow="FACILITY ADMINISTRATION"
-        title="Facility Management"
-        description="Maintain the facilities associated with EnergyLens data collection."
-        action={<button className="manager-primary-button" type="button" onClick={() => setModal("facility")}><Plus size={17} /> Add Facility</button>}
-      />
-      <section className="manager-card">
-        <div className="manager-table-toolbar">
-          <div><h2>Registered Facilities</h2><p>{facilities.length} demo facilities</p></div>
-          <label className="manager-search"><Search size={17} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search facilities..." /></label>
+  
+const renderFacilities = () => (
+  <>
+    <PageHeading
+      eyebrow="FACILITY ADMINISTRATION"
+      title="Facility Management"
+      description="Manage registered EnergyLens facilities."
+      action={
+        <button
+          className="manager-primary-button"
+          type="button"
+          onClick={() => {
+            setEditingFacility(null);
+            setNewFacility(EMPTY_FACILITY);
+            setModal("facility");
+          }}
+        >
+          <Plus size={17} /> Add Facility
+        </button>
+      }
+    />
+
+    <section className="manager-card">
+      <div className="manager-table-toolbar">
+        <div>
+          <h2>Registered Facilities</h2>
+          <p>{facilities.length} registered facilities</p>
         </div>
+
+        <label className="manager-search">
+          <Search size={17} />
+          <input
+            value={searchTerm}
+            onChange={(event) =>
+              setSearchTerm(event.target.value)
+            }
+            placeholder="Search facilities..."
+          />
+        </label>
+      </div>
+
+      {facilitiesLoading ? (
+        <p className="manager-footnote">
+          Loading facilities from Firestore...
+        </p>
+      ) : facilitiesError ? (
+        <div className="manager-error-message" role="alert">
+          {facilitiesError}
+          <button
+            type="button"
+            className="manager-text-button"
+            onClick={async () => {
+              try {
+                setFacilitiesLoading(true);
+                setFacilitiesError("");
+                setFacilities(await getAllFacilities());
+              } catch (error) {
+                setFacilitiesError(error.message);
+              } finally {
+                setFacilitiesLoading(false);
+              }
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
         <div className="manager-table-wrap">
           <table className="manager-table">
-            <thead><tr><th>Facility</th><th>Facility Code</th><th>Location</th><th>Type</th><th>Status</th><th>Action</th></tr></thead>
-            <tbody>{filteredFacilities.map((facility) => (
-              <tr key={facility.id}>
-                <td><strong>{facility.name}</strong></td><td>{facility.code}</td><td>{facility.location || "—"}</td><td>{facility.type}</td>
-                <td><span className={`manager-status-pill ${facility.status === "Active" ? "active" : "inactive"}`}>{facility.status}</span></td>
-                <td><button type="button" className="manager-text-button" onClick={() => toggleFacilityStatus(facility.id)}>{facility.status === "Active" ? "Deactivate" : "Activate"}</button></td>
+            <thead>
+              <tr>
+                <th>Facility</th>
+                <th>Size (m²)</th>
+                <th>Location</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
-            ))}</tbody>
+            </thead>
+
+            <tbody>
+              {filteredFacilities.map((facility) => (
+                <tr key={facility.facilityId}>
+                  <td>
+                    <strong>{facility.facilityName}</strong>
+                  </td>
+
+                  <td>{facility.facilitySize}</td>
+
+                  <td>{facility.location || "—"}</td>
+
+                  <td>{facility.facilityType}</td>
+
+                  <td>
+                    <span className="manager-status-pill active">
+                      Active
+                    </span>
+                  </td>
+
+                  <td>
+                    <button
+                      type="button"
+                      className="manager-text-button"
+                      disabled={facilitySaving}
+                      onClick={() => openFacilityEditor(facility)}
+                    >
+                      Edit
+                    </button>
+
+                    {" "}
+
+                    <button
+                      type="button"
+                      className="manager-text-button"
+                      disabled={facilitySaving}
+                      onClick={() => handleArchiveFacility(facility)}
+                    >
+                      Archive
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
-          {filteredFacilities.length === 0 && <EmptyState icon={Building2} title="No facilities found" description="Try another search term." />}
+
+          {filteredFacilities.length === 0 && (
+            <EmptyState
+              icon={Building2}
+              title="No facilities found"
+              description="Add a facility or try another search term."
+            />
+          )}
         </div>
-      </section>
-      <p className="manager-footnote">Facility changes are temporary and will reset when the page is refreshed.</p>
-    </>
-  );
+      )}
+    </section>
+
+    <p className="manager-footnote">
+      Facility information is stored in Firebase Firestore.
+    </p>
+  </>
+);
+
 
   const renderRecords = () => (
     <>
@@ -513,7 +966,7 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
       <section className="manager-card manager-settings-card">
         {[
           ["User access", "Account creation, role assignment and account status are planned for Firebase Authentication."],
-          ["Database", "EnergyLens will use Firebase. Database collections and security rules are not connected yet."],
+          ["Database", "EnergyLens facility information and user profiles are connected to Firebase Firestore."],
           ["Document processing", "OCR processing requires a configured backend or document-processing service."],
           ["Notifications", "In-app notifications and email alerts are not configured."],
         ].map(([title, description]) => (
@@ -561,30 +1014,154 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
         <div className="manager-content">
           {pageRenderers[activePage]()}
         </div>
-        <footer className="manager-footer"><span>EnergyLens Management Workspace</span><span>Frontend preview · Firebase not connected</span></footer>
+        <footer className="manager-footer"><span>EnergyLens Management Workspace</span><span>Firebase user profiles · Facility/OCR modules pending</span></footer>
       </main>
 
       {notice && <div className="manager-toast" role="status"><CheckCircle2 size={17} />{notice}<button type="button" onClick={() => setNotice("")} aria-label="Dismiss"><X size={15} /></button></div>}
 
       {modal === "user" && (
-        <Modal title="Add Demo User" onClose={() => setModal("")}>
+        <Modal
+          title="Create User Account"
+          onClose={() => {
+            if (!userSaving) setModal("");
+          }}
+        >
           <form className="manager-form" onSubmit={addUser}>
             <label>Full name<input required value={newUser.name} onChange={(event) => setNewUser({ ...newUser, name: event.target.value })} placeholder="Enter full name" /></label>
             <label>Email address<input required type="email" value={newUser.email} onChange={(event) => setNewUser({ ...newUser, email: event.target.value })} placeholder="name@example.com" /></label>
             <label>Assigned role<select value={newUser.role} onChange={(event) => setNewUser({ ...newUser, role: event.target.value })}><option>Manager</option><option>Analyst</option><option>Staff</option><option>Stakeholder</option></select></label>
-            <div className="manager-form-actions"><button type="button" className="manager-secondary-button" onClick={() => setModal("")}>Cancel</button><button type="submit" className="manager-primary-button">Add Demo User</button></div>
+            <div className="manager-form-actions">
+  <button
+    type="button"
+    className="manager-secondary-button"
+    disabled={userSaving}
+    onClick={() => setModal("")}
+  >
+    Cancel
+  </button>
+
+  <button
+    type="submit"
+    className="manager-primary-button"
+    disabled={userSaving}
+  >
+    {userSaving ? "Creating Account..." : "Create Account"}
+  </button>
+</div>
           </form>
         </Modal>
       )}
 
       {modal === "facility" && (
-        <Modal title="Add Demo Facility" onClose={() => setModal("")}>
-          <form className="manager-form" onSubmit={addFacility}>
-            <label>Facility name<input required value={newFacility.name} onChange={(event) => setNewFacility({ ...newFacility, name: event.target.value })} placeholder="Enter facility name" /></label>
-            <label>Facility code<input required value={newFacility.code} onChange={(event) => setNewFacility({ ...newFacility, code: event.target.value })} placeholder="e.g. FAC-004" /></label>
-            <label>Location<input value={newFacility.location} onChange={(event) => setNewFacility({ ...newFacility, location: event.target.value })} placeholder="Enter location" /></label>
-            <label>Facility type<select value={newFacility.type} onChange={(event) => setNewFacility({ ...newFacility, type: event.target.value })}><option>Office</option><option>Academic</option><option>Laboratory</option><option>Residential</option><option>Other</option></select></label>
-            <div className="manager-form-actions"><button type="button" className="manager-secondary-button" onClick={() => setModal("")}>Cancel</button><button type="submit" className="manager-primary-button">Add Demo Facility</button></div>
+        <Modal
+          title={editingFacility ? "Edit Facility" : "Add Facility"}
+          onClose={() => {
+            if (facilitySaving) return;
+            setModal("");
+            setEditingFacility(null);
+            setNewFacility(EMPTY_FACILITY);
+          }}
+        >
+          <form
+            className="manager-form"
+            onSubmit={editingFacility ? saveFacilityEdit : addFacility}
+          >
+            <label>
+              Facility name
+              <input
+                required
+                value={newFacility.facilityName}
+                onChange={(event) =>
+                  setNewFacility((current) => ({
+                    ...current,
+                    facilityName: event.target.value,
+                  }))
+                }
+                placeholder="Enter facility name"
+              />
+            </label>
+
+            <label>
+              Facility size (m²)
+              <input
+                required
+                type="number"
+                min="0.01"
+                step="any"
+                value={newFacility.facilitySize}
+                onChange={(event) =>
+                  setNewFacility((current) => ({
+                    ...current,
+                    facilitySize: event.target.value,
+                  }))
+                }
+                placeholder="Enter facility size"
+              />
+            </label>
+
+            <label>
+              Facility type
+              <select
+                required
+                value={newFacility.facilityType}
+                onChange={(event) =>
+                  setNewFacility((current) => ({
+                    ...current,
+                    facilityType: event.target.value,
+                  }))
+                }
+              >
+                <option value="Commercial">Commercial</option>
+                <option value="Office">Office</option>
+                <option value="Academic">Academic</option>
+                <option value="Laboratory">Laboratory</option>
+                <option value="Residential">Residential</option>
+                <option value="Industrial">Industrial</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            <label>
+              Location
+              <input
+                required
+                value={newFacility.location}
+                onChange={(event) =>
+                  setNewFacility((current) => ({
+                    ...current,
+                    location: event.target.value,
+                  }))
+                }
+                placeholder="Enter facility location"
+              />
+            </label>
+
+            <div className="manager-form-actions">
+              <button
+                type="button"
+                className="manager-secondary-button"
+                disabled={facilitySaving}
+                onClick={() => {
+                  setModal("");
+                  setEditingFacility(null);
+                  setNewFacility(EMPTY_FACILITY);
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className="manager-primary-button"
+                disabled={facilitySaving}
+              >
+                {facilitySaving
+                  ? "Saving..."
+                  : editingFacility
+                    ? "Save Changes"
+                    : "Add Facility"}
+              </button>
+            </div>
           </form>
         </Modal>
       )}
@@ -640,570 +1217,3 @@ export default function ManagerDashboard({ records = EMPTY_RECORDS, onUpdateReco
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -2,7 +2,6 @@
 import { useMemo, useState } from "react";
 import {
   Activity,
-  BarChart3,
   Building2,
   CheckCircle2,
   ChevronRight,
@@ -32,7 +31,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
 } from "recharts";
 
 import "./StakeholderDashboard.css";

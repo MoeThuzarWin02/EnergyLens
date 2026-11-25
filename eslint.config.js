@@ -6,15 +6,15 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  // Ignore generated files and VS Code history backups
   globalIgnores([
     'dist',
     'node_modules',
     '.history/**',
   ]),
 
+  // Frontend React application
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['src/**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,
@@ -25,6 +25,15 @@ export default defineConfig([
       parserOptions: {
         ecmaFeatures: { jsx: true },
       },
+    },
+  },
+
+  // Firebase Cloud Functions (Node.js CommonJS)
+  {
+    files: ['functions/**/*.{js,cjs}'],
+    languageOptions: {
+      globals: globals.node,
+      sourceType: 'commonjs',
     },
   },
 ])

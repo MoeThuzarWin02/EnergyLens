@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  loginUser,
+  logoutUser,
+  resetUserPassword,
+  observeAuthState,
+} from "./services/authService";
+
+import { getCurrentUserProfile } from "./services/userService";
+
 import { BrowserMultiFormatReader } from "@zxing/browser";
 
 import ManagerDashboard from "./ManagerDashboard";
@@ -2349,8 +2358,6 @@ function PlaceholderPage({ title, onBack }) {
 
 }
 
-
-
 function ProfilePage({ user, onBack, onSavePhoto }) {
   const displayName = user?.displayName || "Staff";
 
@@ -2367,10 +2374,6 @@ function ProfilePage({ user, onBack, onSavePhoto }) {
 
   const photoMenuRef = useRef(null);
   const fileInputRef = useRef(null);
-
-  useEffect(() => {
-    setPhotoPreview(user?.photoURL || "");
-  }, [user?.photoURL]);
 
   // Close floating menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -2605,542 +2608,6 @@ function ProfilePage({ user, onBack, onSavePhoto }) {
 
 
     </section>
-  );
-}
-
-
-
-const DEMO_PASSWORD = "EnergyLens123!";
-
-const DEMO_PROFILES = {
-  "manager@energylens.demo": {
-    uid: "demo-manager-001",
-    displayName: "EnergyLens Manager",
-    email: "manager@energylens.demo",
-    role: "manager",
-    active: true,
-  },
-
-  "analyst@energylens.demo": {
-    uid: "demo-analyst-001",
-    displayName: "EnergyLens Analyst",
-    email: "analyst@energylens.demo",
-    role: "analyst",
-    active: true,
-  },
-
-  "staff@energylens.demo": {
-    uid: "demo-staff-001",
-    displayName: "EnergyLens Staff",
-    email: "staff@energylens.demo",
-    role: "staff",
-    active: true,
-  },
-
-  "stakeholder@energylens.demo": {
-    uid: "demo-stakeholder-001",
-    displayName: "EnergyLens Stakeholder",
-    email: "stakeholder@energylens.demo",
-    role: "stakeholder",
-    active: true,
-  },
-};
-
-
-function PendingRoleDashboard({ role, onLogout }) {
-
-  const isAnalyst = role === "analyst";
-
-  const title = isAnalyst
-
-    ? "Analyst Workspace"
-
-    : "Stakeholder Workspace";
-
-  const features = isAnalyst
-
-    ? [
-
-        "PCA and TOPSIS analysis",
-
-        "EPI results and energy predictions",
-
-        "Simulation and scenario analysis",
-
-        "OCR extraction review and correction",
-
-      ]
-
-    : [
-
-        "Facility performance statistics",
-
-        "Energy consumption monitoring",
-
-        "Electricity cost monitoring",
-
-        "Monthly charts and reports",
-
-        "EPI performance monitoring",
-
-      ];
-
-  return (
-
-    <main
-
-      style={{
-
-        minHeight: "100vh",
-
-        padding: "45px",
-
-        background: "#f4f7fb",
-
-        color: "#183451",
-
-      }}
-
-    >
-
-      <header
-
-        style={{
-
-          display: "flex",
-
-          justifyContent: "space-between",
-
-          alignItems: "center",
-
-          flexWrap: "wrap",
-
-          gap: "15px",
-
-        }}
-
-      >
-
-        <div>
-
-          <h1 style={{ margin: 0 }}>EnergyLens</h1>
-
-          <p>{title}</p>
-
-        </div>
-
-        <button
-
-          type="button"
-
-          onClick={onLogout}
-
-          style={{
-
-            padding: "11px 20px",
-
-            border: "1px solid #d5deea",
-
-            borderRadius: "8px",
-
-            background: "white",
-
-            cursor: "pointer",
-
-          }}
-
-        >
-
-          <LogOut size={16} style={{ verticalAlign: "middle" }} />
-
-          {" "}Logout
-
-        </button>
-
-      </header>
-
-      <section
-
-        style={{
-
-          maxWidth: "750px",
-
-          margin: "65px auto",
-
-          padding: "35px",
-
-          background: "white",
-
-          borderRadius: "15px",
-
-          boxShadow: "0 5px 25px rgba(20,45,75,0.06)",
-
-        }}
-
-      >
-
-        <span
-
-          style={{
-
-            color: "#3475b6",
-
-            fontWeight: 700,
-
-            fontSize: "12px",
-
-          }}
-
-        >
-
-          {role.toUpperCase()} DASHBOARD
-
-        </span>
-
-        <h2>{title}</h2>
-
-        <p style={{ color: "#718096" }}>
-
-          Your account has been recognised successfully.
-
-          This dashboard is currently under development.
-
-        </p>
-
-        <h3>Planned functions</h3>
-
-        <ul style={{ lineHeight: 2.2, paddingLeft: "22px" }}>
-
-          {features.map((feature) => (
-
-            <li key={feature}>{feature}</li>
-
-          ))}
-
-        </ul>
-
-        <p style={{ color: "#8a96a8", fontSize: "13px" }}>
-
-          These features will be implemented in the next
-
-          development stage.
-
-        </p>
-
-      </section>
-
-    </main>
-
-  );
-
-}
-
-function OCRReviewPanel({
-  selectedFile,
-  extractedData,
-  documents,
-  onFieldChange,
-  onApprove,
-  onReject,
-}) {
-  const [previewUrl, setPreviewUrl] = useState("");
-
-  useEffect(() => {
-    if (!selectedFile) {
-      setPreviewUrl("");
-      return;
-    }
-
-    const url = URL.createObjectURL(selectedFile);
-
-    setPreviewUrl(url);
-
-    return () => URL.revokeObjectURL(url);
-  }, [selectedFile]);
-
-  const isPdf =
-    selectedFile?.type === "application/pdf" ||
-    /\.pdf$/i.test(selectedFile?.name || "");
-
-  const fields = [
-    {
-      key: "consumptionKwh",
-      label: "Energy Consumption (kWh)",
-      type: "number",
-    },
-    {
-      key: "electricityCost",
-      label: "Electricity Cost (RM)",
-      type: "number",
-    },
-    {
-      key: "billingPeriod",
-      label: "Billing Period",
-      type: "text",
-    },
-    {
-      key: "peakDemandKw",
-      label: "Peak Demand (kW)",
-      type: "number",
-    },
-    {
-      key: "tariffRate",
-      label: "Tariff Rate (RM/kWh)",
-      type: "number",
-    },
-  ];
-
-  return (
-    <article className="dashboard-panel ocr-workspace-panel">
-
-      <PanelHeader
-        icon={ScanLine}
-        title="OCR Document Review"
-      />
-
-      <div className="ocr-workspace-content">
-
-        <div className="ocr-review-grid">
-
-          {/* DOCUMENT PREVIEW */}
-
-          <section className="ocr-preview-card">
-
-            <h3>Document Preview</h3>
-
-            <p>
-              Preview your selected electricity bill or document.
-            </p>
-
-            <div className="ocr-document-preview">
-
-              {!selectedFile ? (
-                <div className="ocr-empty-preview">
-                  <CloudUpload size={42} />
-
-                  <strong>No document selected</strong>
-
-                  <span>
-                    Upload a document using Smart Document Import.
-                  </span>
-                </div>
-              ) : isPdf ? (
-                <iframe
-                  src={previewUrl}
-                  title="PDF document preview"
-                />
-              ) : (
-                <img
-                  src={previewUrl}
-                  alt="Uploaded electricity document"
-                />
-              )}
-
-            </div>
-
-            {selectedFile && (
-              <div className="ocr-file-information">
-
-                <FileText size={18} />
-
-                <span>{selectedFile.name}</span>
-
-              </div>
-            )}
-
-          </section>
-
-          {/* EXTRACTION RESULTS */}
-
-          <section className="ocr-results-card">
-
-            <h3>Extraction Results</h3>
-
-            <p>
-              Review and correct the information extracted
-              from your electricity document.
-            </p>
-
-            {!extractedData ? (
-
-              <div className="ocr-empty-results">
-
-                <ScanLine size={38} />
-
-                <strong>No extraction results yet</strong>
-
-                <span>
-                  Select a document and click Extract Document
-                  to generate demonstration results.
-                </span>
-
-              </div>
-
-            ) : (
-
-              <>
-
-                <div className="ocr-review-status">
-
-                  <span>Processing Status</span>
-
-                  <strong>{extractedData.status}</strong>
-
-                </div>
-
-                <div className="ocr-fields-grid">
-
-                  {fields.map((field) => (
-
-                    <div
-                      className="ocr-field"
-                      key={field.key}
-                    >
-
-                      <label htmlFor={`ocr-${field.key}`}>
-                        {field.label}
-                      </label>
-
-                      <input
-                        id={`ocr-${field.key}`}
-                        type={field.type}
-                        step="any"
-                        value={extractedData[field.key]}
-                        onChange={(event) =>
-                          onFieldChange(
-                            field.key,
-                            event.target.value
-                          )
-                        }
-                        disabled={
-                          extractedData.status !== "Pending Review"
-                        }
-                      />
-
-                    </div>
-
-                  ))}
-
-                </div>
-
-                {extractedData.status === "Pending Review" && (
-
-                  <div className="ocr-review-actions">
-
-                    <button
-                      type="button"
-                      className="ocr-approve-button"
-                      onClick={onApprove}
-                    >
-                      <CheckCircle2 size={17} />
-                      Approve Document
-                    </button>
-
-                    <button
-                      type="button"
-                      className="ocr-reject-button"
-                      onClick={onReject}
-                    >
-                      <X size={17} />
-                      Reject Document
-                    </button>
-
-                  </div>
-
-                )}
-
-              </>
-
-            )}
-
-          </section>
-
-        </div>
-
-        {/* DOCUMENT HISTORY */}
-
-        <section className="ocr-history-card">
-
-          <div className="ocr-history-heading">
-
-            <div>
-              <h3>Document History</h3>
-
-              <p>
-                Review uploaded documents and their processing status.
-              </p>
-            </div>
-
-            <span>{documents.length} Documents</span>
-
-          </div>
-
-          {documents.length === 0 ? (
-
-            <div className="ocr-history-empty">
-              No uploaded documents yet.
-            </div>
-
-          ) : (
-
-            <div className="ocr-history-table-wrap">
-
-              <table className="ocr-history-table">
-
-                <thead>
-                  <tr>
-                    <th>Document Name</th>
-                    <th>Upload Date</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-
-                  {documents.map((document) => (
-
-                    <tr key={document.id}>
-
-                      <td>
-                        <FileText size={17} />
-                        {document.fileName}
-                      </td>
-
-                      <td>{document.uploadedAt}</td>
-
-                      <td>
-
-                        <span
-                          className={`ocr-status ${
-                            document.status === "Approved"
-                              ? "approved"
-                              : document.status === "Rejected"
-                              ? "rejected"
-                              : "pending"
-                          }`}
-                        >
-                          {document.status}
-                        </span>
-
-                      </td>
-
-                    </tr>
-
-                  ))}
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          )}
-
-        </section>
-
-      </div>
-
-    </article>
   );
 }
 
@@ -3433,36 +2900,15 @@ The values currently displayed in the form are demonstration values, not verifie
 function App() {
 
 
-
-const handleDemoLogin = async ({ email, password }) => {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const profile = DEMO_PROFILES[normalizedEmail];
-
-  if (!profile || password !== DEMO_PASSWORD) {
-    throw new Error("Invalid email address or password.");
-  }
-
-  if (profile.active !== true) {
-    throw new Error(
-      "Your account is inactive. Contact your Manager."
-    );
-  }
-
-  // Save the complete user profile
-  let savedPhoto = "";
-
-  try {
-    savedPhoto =
-      localStorage.getItem(`energylens_profile_photo_${profile.uid}`) || "";
-  } catch (error) {
-    console.error("Unable to load profile photo:", error);
-  }
+const handleLogin = async ({ email, password }) => {
+  const { authUser, profile } = await loginUser(email, password);
 
   setCurrentUser({
+    uid: authUser.uid,
+    email: authUser.email,
     ...profile,
-    photoURL: savedPhoto,
   });
+
   setActivePage("Home");
   setActiveNav("Home");
   setNotice("");
@@ -3481,36 +2927,35 @@ const handleSaveProfilePhoto = (photoURL) => {
     }
 
     setCurrentUser((current) =>
-      current
-        ? { ...current, photoURL: photoURL || "" }
-        : current
+      current ? { ...current, photoURL: photoURL || "" } : current
     );
 
     return true;
-
   } catch (error) {
     console.error("Unable to save profile photo:", error);
     return false;
   }
 };
 
-const handleLogout = () => {
+const handleLogout = async () => {
+  try {
+    await logoutUser();
 
-  setCurrentUser(null);
-
-  setActivePage("Home");
-
-  setActiveNav("Home");
-
-  setSelectedFile(null);
-
-  setNotice("");
-
+    setCurrentUser(null);
+    setActivePage("Home");
+    setActiveNav("Home");
+    setSelectedFile(null);
+    setNotice("");
+  } catch (error) {
+    console.error("Logout failed:", error);
+    setNotice("Unable to log out. Please try again.");
+  }
 };
 
   const fileInputRef = useRef(null);
 
   const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const [activePage, setActivePage] = useState("Home");
   const [activeNav, setActiveNav] = useState("Home");
@@ -3518,13 +2963,73 @@ const handleLogout = () => {
 
   const [selectedFile, setSelectedFile] = useState(null);
 
-  // Temporary OCR demo data
-const [extractedData, setExtractedData] = useState(null);
-const [ocrDocuments, setOcrDocuments] = useState([]);
-
   const [isDragging, setIsDragging] = useState(false);
 
   const [notice, setNotice] = useState("");
+  // RESTORE FIREBASE AUTHENTICATION SESSION
+useEffect(() => {
+  let isMounted = true;
+
+  const unsubscribe = observeAuthState(async (authUser) => {
+    if (!authUser) {
+      if (isMounted) {
+        setCurrentUser(null);
+        setIsAuthLoading(false);
+      }
+      return;
+    }
+
+    try {
+      const profile = await getCurrentUserProfile(authUser.uid);
+
+      if (!profile || profile.active !== true) {
+        await logoutUser();
+
+        if (isMounted) {
+          setCurrentUser(null);
+          setNotice(
+            "Your account is inactive. Contact your Manager."
+          );
+          setIsAuthLoading(false);
+        }
+
+        return;
+      }
+
+      if (isMounted) {
+        let savedPhoto = "";
+        try {
+          savedPhoto =
+            localStorage.getItem(`energylens_profile_photo_${authUser.uid}`) || "";
+        } catch (storageError) {
+          console.error("Unable to load profile photo:", storageError);
+        }
+
+        setCurrentUser({
+          uid: authUser.uid,
+          email: authUser.email,
+          ...profile,
+          photoURL: profile.photoURL || savedPhoto,
+        });
+
+        setIsAuthLoading(false);
+      }
+    } catch (error) {
+      console.error("Authentication session error:", error);
+
+      if (isMounted) {
+        setCurrentUser(null);
+        setNotice("Unable to restore your session.");
+        setIsAuthLoading(false);
+      }
+    }
+  });
+
+  return () => {
+    isMounted = false;
+    unsubscribe();
+  };
+}, []);
 
   // Temporary frontend records.
 
@@ -3635,7 +3140,6 @@ useEffect(() => {
     }
 
     setSelectedFile(file);
-    setExtractedData(null);
     setNotice("");
 
   };
@@ -3765,40 +3269,9 @@ useEffect(() => {
       setNotice("Please upload a document before extracting.");
       return;
     }
-
-    setExtractedData(null);
     setNotice("");
     setActiveNav("Home");
     setActivePage("Document Extraction");
-  };
-
-  const handleOCRFieldChange = (field, value) => {
-    setExtractedData((current) =>
-      current ? { ...current, [field]: value } : current
-    );
-  };
-
-  const handleOCRDecision = (decision) => {
-    if (!extractedData || extractedData.status !== "Pending Review") {
-      return;
-    }
-
-    setOcrDocuments((current) =>
-      current.map((document) =>
-        document.id === extractedData.id
-          ? { ...document, status: decision }
-          : document
-      )
-    );
-
-    setExtractedData((current) => ({
-      ...current,
-      status: decision,
-    }));
-
-    setNotice(
-      `Document ${decision.toLowerCase()} successfully in demo mode.`
-    );
   };
 
 
@@ -3820,14 +3293,32 @@ useEffect(() => {
 
 // ========================================
 
+// WAIT FOR FIREBASE AUTHENTICATION
+if (isAuthLoading) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        flexDirection: "column",
+        gap: "12px",
+      }}
+    >
+      <div className="loading-spinner" />
+      <p>Checking your EnergyLens account...</p>
+    </div>
+  );
+}
+
 if (!currentUser) {
 
   return (
 
     <LoginPage
-
-      onLogin={handleDemoLogin}
-
+      onLogin={handleLogin}
+      onForgotPassword={resetUserPassword}
     />
 
   );
@@ -3842,6 +3333,7 @@ if (currentUser.role === "manager") {
 
     <ManagerDashboard
 
+      currentUser={currentUser}
       records={savedRecords}
 
       onUpdateRecord={(category, id, updatedFields) => {
