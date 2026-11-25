@@ -1,10 +1,12 @@
 
 import { useMemo, useState } from "react";
+import ProfilePage from "./components/ProfilePage";
 import {
   Activity,
   Building2,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
   FileText,
   Gauge,
   LayoutDashboard,
@@ -17,6 +19,7 @@ import {
   Zap,
   MapPin,
   Eye,
+  UserRound,
 } from "lucide-react";
 
 import {
@@ -261,6 +264,7 @@ function StakeholderPageHeading({
 export default function StakeholderDashboard({
   user,
   onLogout,
+  onSavePhoto,
 }) {
   const [activePage, setActivePage] = useState("Overview");
 
@@ -269,6 +273,7 @@ export default function StakeholderDashboard({
 
   const [mobileMenuOpen, setMobileMenuOpen] =
     useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const displayName =
     user?.displayName ||
@@ -333,6 +338,7 @@ export default function StakeholderDashboard({
   const handleNavigation = (page) => {
     setActivePage(page);
     setMobileMenuOpen(false);
+    setIsProfileMenuOpen(false);
   };
 
   // -------------------------------------
@@ -1049,6 +1055,18 @@ export default function StakeholderDashboard({
   };
 
   // -------------------------------------
+  // SHARED ACCOUNT PROFILE
+  // -------------------------------------
+
+  const renderProfile = () => (
+    <ProfilePage
+      user={user}
+      onBack={() => setActivePage("Overview")}
+      onSavePhoto={onSavePhoto}
+    />
+  );
+
+  // -------------------------------------
   // PAGE ROUTING
   // -------------------------------------
 
@@ -1059,6 +1077,7 @@ export default function StakeholderDashboard({
     "EPI Performance": renderEPI,
     "Facility Comparison": renderComparison,
     Reports: renderReports,
+    "My Profile": renderProfile,
   };
 
   // -------------------------------------
@@ -1177,11 +1196,112 @@ export default function StakeholderDashboard({
           </div>
 
           <div className="stakeholder-topbar-right">
-            <ShieldCheck size={17} />
-            Read-only Access
+            <span className="stakeholder-topbar-role">
+              <ShieldCheck size={17} />
+              Read-only Access
+            </span>
+
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={isProfileMenuOpen}
+                aria-label="Open profile menu"
+                onClick={() => setIsProfileMenuOpen((open) => !open)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "9px",
+                  padding: "5px 8px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "10px",
+                  background: "#ffffff",
+                  color: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                <span className="stakeholder-avatar">
+                  {displayName.charAt(0).toUpperCase()}
+                </span>
+                <span style={{ textAlign: "left", lineHeight: 1.25 }}>
+                  <strong style={{ display: "block", fontSize: "13px" }}>
+                    {displayName}
+                  </strong>
+                  <small style={{ display: "block", opacity: 0.7 }}>
+                    Stakeholder
+                  </small>
+                </span>
+                <ChevronDown size={15} />
+              </button>
+
+              {isProfileMenuOpen && (
+                <div
+                  role="menu"
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    zIndex: 1000,
+                    minWidth: "190px",
+                    padding: "6px",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "12px",
+                    background: "#ffffff",
+                    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.14)",
+                  }}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => handleNavigation("My Profile")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      width: "100%",
+                      padding: "10px 12px",
+                      border: 0,
+                      borderRadius: "8px",
+                      background: "transparent",
+                      color: "#1f2937",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <UserRound size={17} />
+                    My Profile
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      onLogout?.();
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      width: "100%",
+                      padding: "10px 12px",
+                      border: 0,
+                      borderRadius: "8px",
+                      background: "transparent",
+                      color: "#b42318",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <LogOut size={17} />
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
+        {activePage !== "My Profile" && (
         <div className="stakeholder-filter-bar">
           <label htmlFor="stakeholder-facility">
             <MapPin size={16} />
@@ -1206,6 +1326,7 @@ export default function StakeholderDashboard({
             ))}
           </select>
         </div>
+        )}
 
         <div className="stakeholder-page-content">
           {pageContent[activePage]()}

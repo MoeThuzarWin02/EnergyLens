@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ProfilePage from "./components/ProfilePage";
 import {
   createManagedUser,
   setManagedUserStatus,
@@ -24,6 +25,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Database,
+  UserRound,
   FileClock,
   Pencil,
   Trash2,
@@ -147,11 +149,13 @@ function Modal({ title, onClose, children, className = "" }) {
 
 export default function ManagerDashboard({
   currentUser,
+  onSavePhoto,
   records = EMPTY_RECORDS,
   onUpdateRecord,
   onDeleteRecord,
   onLogout = () => {}
 }) {
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [activePage, setActivePage] = useState("Overview");
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -976,6 +980,15 @@ const renderFacilities = () => (
     </>
   );
 
+
+  const renderProfile = () => (
+    <ProfilePage
+      user={currentUser}
+      onBack={() => setActivePage("Overview")}
+      onSavePhoto={onSavePhoto}
+    />
+  );
+
   const pageRenderers = {
     Overview: renderOverview,
     "User Management": renderUsers,
@@ -984,6 +997,7 @@ const renderFacilities = () => (
     "All Records": renderRecords,
     "OCR Management": renderOCR,
     "System Configuration": renderSettings,
+    "My Profile": renderProfile,
   };
 
   return (
@@ -1008,7 +1022,54 @@ const renderFacilities = () => (
           <div><span className="manager-topbar-label">ENERGYLENS / ADMIN</span><strong>{activePage}</strong></div>
           <div className="manager-topbar-actions">
             <button type="button" className="manager-icon-button" aria-label="Notifications" onClick={() => showNotice("No new notifications in this preview.")}><Bell size={19} /></button>
-            <div className="manager-profile"><span className="manager-avatar">M</span><span><strong>Manager</strong><small>Administrator</small></span><ChevronDown size={16} /></div>
+            <div className="manager-profile-wrap">
+              <button
+                type="button"
+                className="manager-profile"
+                aria-haspopup="menu"
+                aria-expanded={isProfileMenuOpen}
+                onClick={() => setIsProfileMenuOpen((open) => !open)}
+              >
+                <span className="manager-avatar">M</span>
+
+                <span>
+                  <strong>Manager</strong>
+                  <small>Administrator</small>
+                </span>
+
+                <ChevronDown size={16} />
+              </button>
+
+              {isProfileMenuOpen && (
+                <div className="manager-profile-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setActivePage("My Profile");
+                      setSearchTerm("");
+                      setIsProfileMenuOpen(false);
+                    }}
+                  >
+                    <UserRound size={16} />
+                    My Profile
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      onLogout();
+                    }}
+                  >
+                    <LogOut size={16} />
+                    Logout
+                  </button>
+
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <div className="manager-content">
