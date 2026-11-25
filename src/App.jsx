@@ -2346,19 +2346,43 @@ function PlaceholderPage({ title, onBack }) {
 
 }
 
+
 const DEMO_PASSWORD = "EnergyLens123!";
 
-const DEMO_ACCOUNTS = {
+const DEMO_PROFILES = {
+  "manager@energylens.demo": {
+    uid: "demo-manager-001",
+    displayName: "EnergyLens Manager",
+    email: "manager@energylens.demo",
+    role: "manager",
+    active: true,
+  },
 
-  "manager@energylens.demo": "manager",
+  "analyst@energylens.demo": {
+    uid: "demo-analyst-001",
+    displayName: "EnergyLens Analyst",
+    email: "analyst@energylens.demo",
+    role: "analyst",
+    active: true,
+  },
 
-  "analyst@energylens.demo": "analyst",
+  "staff@energylens.demo": {
+    uid: "demo-staff-001",
+    displayName: "EnergyLens Staff",
+    email: "staff@energylens.demo",
+    role: "staff",
+    active: true,
+  },
 
-  "staff@energylens.demo": "staff",
-
-  "stakeholder@energylens.demo": "stakeholder",
-
+  "stakeholder@energylens.demo": {
+    uid: "demo-stakeholder-001",
+    displayName: "EnergyLens Stakeholder",
+    email: "stakeholder@energylens.demo",
+    role: "stakeholder",
+    active: true,
+  },
 };
+
 
 function PendingRoleDashboard({ role, onLogout }) {
 
@@ -2556,32 +2580,29 @@ function PendingRoleDashboard({ role, onLogout }) {
 
 function App() {
 
-  const handleDemoLogin = async ({ email, password }) => {
 
+
+const handleDemoLogin = async ({ email, password }) => {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const role = DEMO_ACCOUNTS[normalizedEmail];
+  const profile = DEMO_PROFILES[normalizedEmail];
 
-  if (!role || password !== DEMO_PASSWORD) {
-
+  if (!profile || password !== DEMO_PASSWORD) {
     throw new Error("Invalid email address or password.");
-
   }
 
-  setCurrentUser({
+  if (profile.active !== true) {
+    throw new Error(
+      "Your account is inactive. Contact your Manager."
+    );
+  }
 
-    email: normalizedEmail,
-
-    role,
-
-  });
+  // Save the complete user profile
+  setCurrentUser({ ...profile });
 
   setActivePage("Home");
-
   setActiveNav("Home");
-
   setNotice("");
-
 };
 
 const handleLogout = () => {
@@ -3018,9 +3039,7 @@ if (currentUser.role === "stakeholder") {
           <div className="welcome-section">
 
             <h1>
-
-  Welcome, {currentUser?.email.split("@")[0]}!
-
+  Welcome, {currentUser?.displayName || "Staff"}!
 </h1>
 
             <p>Your workspace is ready.</p>
