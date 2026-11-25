@@ -2358,8 +2358,6 @@ function PlaceholderPage({ title, onBack }) {
 
 }
 
-
-
 function ProfilePage({ user, onBack, onSavePhoto }) {
   const displayName = user?.displayName || "Staff";
 
