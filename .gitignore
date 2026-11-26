@@ -1,40 +1,47 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+﻿# =====================================
+# Python / FastAPI
+# =====================================
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+ENV/
 
-node_modules
-dist
-dist-ssr
-*.local
+# =====================================
+# Node.js / React / Vite
+# =====================================
+node_modules/
+dist/
+.vite/
+coverage/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-
+# =====================================
+# Environment variables
+# =====================================
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
-.history/
-.history/**
+# =====================================
+# Firebase private credentials
+# =====================================
+**/serviceAccountKey.json
+**/firebase-service-account.json
+**/*-firebase-adminsdk-*.json
+**/*service-account*.json
+**/*serviceAccount*.json
 
-# Local AI agent skills and configuration
-.claude/
-.agents/
-skills-lock.json
+# =====================================
+# Logs and temporary files
+# =====================================
+*.log
+*.tmp
 
-# Local backup files
-src/App.jsx.backup
+# =====================================
+# IDE and operating system
+# =====================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

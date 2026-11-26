@@ -1,16 +1,78 @@
-# React + Vite
+﻿# EnergyLens
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+EnergyLens is an Energy Management System with a React frontend and FastAPI backend.
 
-Currently, two official plugins are available:
+## Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```text
+EnergyLens/
+├── frontend/
+└── backend/
+```
 
-## React Compiler
+## Frontend
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Technology:
+- React
+- Vite
+- Firebase
 
-## Expanding the ESLint configuration
+Run locally:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend URL: http://localhost:5173
+
+## Backend
+
+Technology:
+- Python
+- FastAPI
+- Uvicorn
+- Firebase Admin SDK
+
+Install dependencies:
+
+```bash
+cd backend
+python -m venv .venv
+```
+
+Activate on Windows:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+Install packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+Start the API from the project root:
+
+```powershell
+.\backend\.venv\Scripts\python.exe -m uvicorn main:app --app-dir .\backend --reload
+```
+
+Backend URL: http://127.0.0.1:8000
+
+API documentation: http://127.0.0.1:8000/docs
+
+Health check: http://127.0.0.1:8000/health
+
+## Security
+
+- Never commit `.env` files.
+- Never commit Firebase service-account credentials.
+- Keep private API keys outside Git.
+- Use environment variables for sensitive configuration.
+
+## Development
+
+Frontend and backend are maintained in the same Git repository.
